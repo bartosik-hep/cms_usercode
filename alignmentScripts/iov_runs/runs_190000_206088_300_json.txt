@@ -1,0 +1,13 @@
+Evaluating the list of runs in range [190000-206088] divided by luminosity of 300 pb-1
+Using JSON file: /afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/datasetfiles/Collisions2012/runC/json/Cert_190456-206098_8TeV_PromptReco_Collisions12_JSON_MuonPhys.txt
+lumiCalc finished with total of 500 runs
+Selecting run ranges by luminosity
+
+Runs: [ 190000,191226,191834,193998,194115,194315,194480,194711,194912,195147,195304,195398,195645,195775,195948,196203,196349,196438,196531,198272,198955,199021,199409,199569,199699,199832,199876,200049,200190,200473,200600,201164,201196,201611,201671,201817,202054,202088,202272,202477,202972,203894,204101,204554,204577,205193,205339,205666,205781,206088 ]
+Number of Run ranges: 49
+
+Total Luminosity: 16080.387994 /pb
+From lumiCalc2.py:
+| Delivered LS | Total CMS LS | Delivered(/fb) |
+------------------------------------------------
+|       183317 |       183317 |         16.080 |

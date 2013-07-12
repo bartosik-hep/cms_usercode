@@ -1,0 +1,73 @@
+import FWCore.ParameterSet.Config as cms
+import FWCore.PythonUtilities.LumiList as LumiList
+
+goodLumiSecs = LumiList.LumiList(filename = '/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions12/8TeV/Prompt/Cert_190456-200601_8TeV_PromptReco_Collisions12_JSON_MuonPhys_v2.txt').getCMSSWString().split(',')
+
+maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
+readFiles = cms.untracked.vstring()
+secFiles = cms.untracked.vstring()
+lumiSecs = cms.untracked.VLuminosityBlockRange()
+source = cms.Source ("PoolSource",fileNames = readFiles, secondaryFileNames = secFiles, lumisToProcess = lumiSecs)
+readFiles.extend( [
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/531/0ADB30C0-A8BB-E111-BCDE-001D09F241F0.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/509/94D3D835-B4BA-E111-81E7-001D09F23D1D.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/508/48187FED-71BA-E111-A8E7-003048D3C90E.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/501/7A33BF79-99BA-E111-99DA-BCAEC5329719.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/497/304C5CE4-9ABA-E111-8325-0030486733B4.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/495/78A28A48-D3BA-E111-B2FB-BCAEC5329703.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/453/84B26927-9FBA-E111-86D0-5404A640A642.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/364/28085628-19B9-E111-8DC8-00215AEDFCCC.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/218/4CF60F91-06BA-E111-8475-001D09F291D7.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/203/D29B0E0F-E9B6-E111-8406-003048D2BF1C.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/096/B879BE20-82B6-E111-94F8-BCAEC518FF41.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/090/966E498E-C0B6-E111-AA24-0025901D5D78.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/048/9E20FE1D-36B6-E111-8153-0025901D627C.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/047/8A24E758-1DB6-E111-B3B7-BCAEC5364CFB.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/046/804FE0A3-1CB6-E111-AC59-5404A63886EF.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/027/EA9B7E92-A9B8-E111-A6D9-5404A63886BB.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/023/58559097-D7B5-E111-8AA0-001D09F24FEC.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/196/019/08828FEB-C5B5-E111-A21A-001D09F2AF1E.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/970/AE5A1E66-1AB6-E111-A5EB-003048F1BF68.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/963/A85243A7-9AB5-E111-8715-BCAEC518FF8F.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/950/762521A8-84B5-E111-A063-BCAEC518FF7C.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/929/98931BDE-A6B4-E111-9CF9-BCAEC518FF6E.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/927/9255E723-70B4-E111-B566-5404A63886AF.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/926/788D923E-82B4-E111-898A-003048F1BF68.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/925/A6527CD1-8AB4-E111-A89B-BCAEC5364CED.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/923/60373166-7FB4-E111-8DA6-001D09F29321.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/919/6A0E8855-7BB4-E111-AE20-BCAEC53296F3.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/918/68DEC2A3-8DB4-E111-A546-BCAEC5364C42.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/917/9849D038-82B4-E111-A3D0-003048F11CF0.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/916/144FCB99-86B4-E111-9A8C-BCAEC518FF54.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/915/54A6D7E6-F4B4-E111-9F7D-BCAEC518FF54.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/774/D6B1AE4D-A3B3-E111-A1FC-BCAEC5364C4C.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/552/FA013CAA-88B1-E111-90F5-003048D2BC30.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/387/9C5CF4FD-69AE-E111-9FEB-5404A63886EE.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/385/2A65A928-62AE-E111-AC5A-003048D3733E.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/379/44262A3D-00AF-E111-BDFE-001D09F2905B.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/378/3A0E717F-7AAF-E111-A1A1-BCAEC518FF8D.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/123/3CD091CD-60AA-E111-89D0-BCAEC53296F3.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/115/D0C094DE-AEAA-E111-900A-003048F024C2.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/114/9E8F56F8-A9AA-E111-B502-003048CFB40C.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/113/08EE1F26-0DAB-E111-B96C-0025901D626C.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/112/8CC03E07-43AB-E111-B0BE-003048D3733E.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/111/C422435B-ABAA-E111-9377-003048F118C4.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/110/A61FD4B6-3FAA-E111-9719-E0CB4E4408C4.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/195/109/5C593BF5-9EAB-E111-8CB1-003048D2C108.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/912/F019FFA0-B5A8-E111-B891-001D09F24DA8.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/699/FC52507B-1FA6-E111-8AD0-0025901D5D9A.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/691/42044761-69A6-E111-8DB7-BCAEC518FF68.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/644/D06595B1-A9A5-E111-8549-BCAEC518FF74.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/643/0E6C504F-76A5-E111-865C-003048D3756A.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/428/44034ED7-CFA3-E111-B50C-5404A63886EE.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/427/E2AC4D8E-AFA2-E111-80F8-001D09F23174.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/424/3A442000-9DA4-E111-869D-5404A63886B1.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/210/58381323-CEA0-E111-BB5C-001D09F25267.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/199/1081F678-CBA0-E111-ACB6-0025901D5C88.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/153/C0044CFE-4EA0-E111-8149-0025901D5DB8.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/151/C2CB9386-ABA0-E111-80B6-002481E0D7EC.root",
+"/store/data/Run2012B/SingleMu/ALCARECO/TkAlMuonIsolated-v1/000/194/050/A6B4BFF0-C79E-E111-B96E-003048D2BEA8.root",
+] )
+
+lumiSecs.extend(goodLumiSecs)
+
