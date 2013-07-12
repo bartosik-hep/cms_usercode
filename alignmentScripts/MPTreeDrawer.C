@@ -41,8 +41,7 @@ TStyle *tdrStyle;
 int markerColors[2]= {1,2};
 int markerStyles[6][2]= {{20,24},{21,25},{22,26},{23,32}};
 int lineStyles[3]= {1,7,3};
-int lineColors_[8]= {kGray+2,2,3,kAzure+1,kOrange+7,kPink-6,kAzure-6,kGreen+2};
-int lineColors[2][5]= {{kGray+2,2,3,kAzure+2,kOrange+7},{1,kRed+2,kGreen+2,kAzure-6,kOrange+9}};
+int lineColors[8]= {13,kPink-9,kAzure+7,kSpring-6,kOrange+1,kPink-1,kAzure+10,kSpring+9};
 int fillStyles[2]= {1001,3008};
 TString inputFileName = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1326/jobData/jobm/treeFile_merge.root";
 TString outputPath = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1326/LA_evol";
@@ -310,16 +309,23 @@ int MPTreeDrawer (TString detName, int structId, int layerRing, int stripReadout
     //    TCanvas *c1 = new TCanvas ( "c1","Canvas1",1000,600 );
     TCanvas *c1 = new TCanvas ( "c1","Canvas1");
     // Drawing empty histogram
-    drawEmptyHisto ( 0.0,totLumi,"2012 Integrated Luminosity [fb^{-1}]",minY_,maxY_,"tan(#theta_{LA}^{shift}) ","empty1" );
-    // Drawing each graph
+    TString Y_title;
+    if(calibrationType=="LorentzAngle") Y_title = "tan(#theta_{LA}^{shift}) "; else
+    if(calibrationType=="Backplane") Y_title = "#DeltaW_{BP}^{shift} "; else
+    Y_title = "??? ";
+    drawEmptyHisto ( 0.0,totLumi,"2012 Integrated Luminosity [fb^{-1}]",minY_,maxY_,Y_title,"empty1" );
+    // Drawing each graph for input values
+    if(drawInput) {
+        for ( int i=0; i<nDetParts; i++ ) {
+            setGraphStyle ( graphLAinput.at(i),i,1 );
+            graphLAinput.at(i)->SetMarkerStyle(0);
+            graphLAinput.at(i)->Draw( "Lsame" );
+        }
+    }
+    // Drawing each graph for output values
     for ( int i=0; i<nDetParts; i++ ) {
         setGraphStyle ( graphLA.at(i),i,0 );
-    //        graphLA.at(i)->Draw ( "LPsame" );
         graphLA.at(i)->Draw ( "Psame" );
-    // Drawing input LA value
-        setGraphStyle ( graphLAinput.at(i),i,1 );
-        graphLAinput.at(i)->SetMarkerStyle(0);
-        if(drawInput) graphLAinput.at(i)->Draw( "Lsame" );
     }
 
     TString structName = ( LayerRing==0 ) ?"L":"R";
@@ -471,13 +477,13 @@ void setGraphStyle ( TGraph *graph, int id, int file )
 
     graph->SetMarkerStyle ( markerStyles[structId][Zpart] );
 //    graph->SetMarkerSize ( 1 );
-    graph->SetMarkerColor ( lineColors_[structId] );
+    graph->SetMarkerColor ( lineColors[structId] );
 //    graph->SetFillStyle ( fillStyles[Zpart] );
-    graph->SetLineColor ( lineColors_[structId] );
+    graph->SetLineColor ( lineColors[structId] );
     graph->SetLineWidth ( 2 );
     graph->SetLineStyle ( lineStyles[0] );
     if(file>0) graph->SetLineStyle ( lineStyles[Zpart] );
-//    graph->SetFillColor ( lineColors_[structId] );
+//    graph->SetFillColor ( lineColors[structId] );
 //
 //    graph->SetLineWidth ( file+1 );
 }
