@@ -330,7 +330,7 @@ void PlotAlignmentValidation::setTreeBaseDir( std::string dir )
 }
 
 //------------------------------------------------------------------------------
-void PlotAlignmentValidation::plotSurfaceShapes( const std::string& options, const std::string& residType, const std::string& saveName)
+void PlotAlignmentValidation::plotSurfaceShapes( const std::string& options, const std::string& residType )
 {
   cout << "-------- plotSurfaceShapes called with " << options << endl;
   if (options == "none")
@@ -345,20 +345,19 @@ void PlotAlignmentValidation::plotSurfaceShapes( const std::string& options, con
   }
   // else if (options == "fine") ...
   else 
-    plotSS( options, residType, saveName);
+    plotSS( options, residType );
 
   return;
 }
 
 //------------------------------------------------------------------------------
-void PlotAlignmentValidation::plotSS( const std::string& options, const std::string& residType, const std::string& saveName )
+void PlotAlignmentValidation::plotSS( const std::string& options, const std::string& residType )
 {
   if (residType == "") {
     plotSS( options, "ResXvsXProfile");
     plotSS( options, "ResXvsYProfile");
     return;
   }
-
 
   int plotLayerN = 0;
   int plotRingN  = 0;
@@ -367,7 +366,6 @@ void PlotAlignmentValidation::plotSS( const std::string& options, const std::str
   bool plotRings  = false;  // Todo: implement this?
   bool plotSplits = false;
   int plotSubDetN = 0;     // if zero, plot all
-
 
   TRegexp layer_re("layer=[0-9]+");
   Ssiz_t index, len;
@@ -386,13 +384,6 @@ void PlotAlignmentValidation::plotSS( const std::string& options, const std::str
   if ((index = subdet_re.Index(options, &len)) != -1) {
     std::string substr = options.substr(index+7, len-7);
     plotSubDetN = atoi(substr.c_str());
-  }
-
-  // Eliminating unneccessary loops if raw TCut string specified
-  bool optionIsRawCut = saveName.size()>0;
-  if(optionIsRawCut) {
-    printf("Specified TCut: %s", options.c_str());
-    plotLayers = true;
   }
 
   // If layers are plotted, these are the numbers of layers for each subdetector
@@ -416,9 +407,6 @@ void PlotAlignmentValidation::plotSS( const std::string& options, const std::str
     if (plotSubDetN!=0 && iSubDet!=plotSubDetN)
       continue;
 
-    // if raw TCut specified
-    if(optionIsRawCut && iSubDet>1) break;
-
     // Skips plotting too high layers
     if (plotLayerN > numberOfLayers[iSubDet-1]) {
       continue;
@@ -429,12 +417,9 @@ void PlotAlignmentValidation::plotSS( const std::string& options, const std::str
     
     for (int layer = minlayer; layer <= maxlayer; layer++) {
 
-      if(optionIsRawCut && layer>minlayer) break;
-
       // two plots for TEC, skip first 
       for (int iTEC = 0; iTEC<2; iTEC++) {
 	if (!isTEC && iTEC==0) continue;
-  if(optionIsRawCut && iTEC==0) continue;
 	
 	char  selection[1000];
 	if (!isTEC){
@@ -450,8 +435,6 @@ void PlotAlignmentValidation::plotSS( const std::string& options, const std::str
 	    sprintf(selection,"subDetId==%d && ring > 4",iSubDet); 
 	}
 
-  if(optionIsRawCut) sprintf(selection,"%s",options.c_str());
-
 
 	// Title for plot and name for the file
 
@@ -466,40 +449,27 @@ void PlotAlignmentValidation::plotSS( const std::string& options, const std::str
 	}
 
 	TString myTitle = "Surface Shape, ";
-  if(!optionIsRawCut) {
-  	myTitle += subDetName;
-  	if (layer!=0) {
-  	  myTitle += TString(", layer ");
-  	  myTitle += Form("%d",layer); 
-  	}
-  	if (isTEC && iTEC==0)
-  	  myTitle += TString(" R1-4");
-  	if (isTEC && iTEC>0)
-  	  myTitle += TString(" R5-7");
-  } else {
-    myTitle += TString(selection);
-  }
+	myTitle += subDetName;
+	if (layer!=0) {
+	  myTitle += TString(", layer ");
+	  myTitle += Form("%d",layer); 
+	}
+	if (isTEC && iTEC==0)
+	  myTitle += TString(" R1-4");
+	if (isTEC && iTEC>0)
+	  myTitle += TString(" R5-7");
 
 	// Save plot to file
 	std::ostringstream plotName;
-  if(!optionIsRawCut) {
-    plotName << outputDir << "/SurfaceShape_" << subDetName << "_";
-    plotName << residType; 
-  	if (layer!=0)
-  	  plotName << "_" << "layer" << layer;
-  	if (isTEC && iTEC==0)
-  	  plotName << "_" << "R1-4";
-  	if (isTEC && iTEC>0)
-  	  plotName << "_" << "R5-7";
-  	plotName << ".eps";
-  } else {
-
-    plotName << outputDir << "/SurfaceShape_" << residType << "_";
-    plotName << saveName << ".eps";
-  }
-
-  printf("Will use title: %s\n",myTitle.Data());
-  printf("Will use name: %s\n",plotName.str().c_str());
+	plotName << outputDir << "/SurfaceShape_" << subDetName << "_";
+	plotName << residType; 
+	if (layer!=0)
+	  plotName << "_" << "layer" << layer;
+	if (isTEC && iTEC==0)
+	  plotName << "_" << "R1-4";
+	if (isTEC && iTEC>0)
+	  plotName << "_" << "R5-7";
+	plotName << ".eps";
 
 	// Generate histograms with selection
 	THStack *hs = addHists(selection, residType);
