@@ -6,10 +6,8 @@ My user code in CMS
 
 ## Alignment Scripts
 
-**MPTreeDrawer.C**
-Draws calibration result from the pede output: mp<number>/jobData/jobm/treeFile_merge.root
+Different scripts, datasets, files used for the regular tasks related to the Tracker Alignment activities.
 
-============
 
 ## Analysis scripts
 **fileWithEvent.py**
