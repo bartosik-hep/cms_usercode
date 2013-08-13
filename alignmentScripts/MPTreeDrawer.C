@@ -16,6 +16,7 @@
 
 #include <exception>
 #include <cstdio>
+#include <cmath>
 
 #include "/afs/cern.ch/user/n/nbartosi/cms/TkAl/MillePede/CMSSW_5_3_3_patch2/src/DataFormats/DetId/interface/DetId.h"
 #include "/afs/cern.ch/user/n/nbartosi/cms/TkAl/MillePede/CMSSW_5_3_3_patch2/src/DataFormats/SiPixelDetId/interface/PXBDetId.h"
@@ -43,8 +44,8 @@ int markerStyles[6][2]= {{20,24},{21,25},{22,26},{23,32}};
 int lineStyles[3]= {1,7,3};
 int lineColors[8]= {13,kPink-9,kAzure+7,kSpring-6,kOrange+1,kPink-1,kAzure+10,kSpring+9};
 int fillStyles[2]= {1001,3008};
-TString inputFileName = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1326/jobData/jobm/treeFile_merge.root";
-TString outputPath = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1326/LA_evol";
+TString inputFileName = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1329/jobData/jobm/treeFile_merge.root";
+TString outputPath = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1329/LA_evol";
 std::vector<TString> DetName;
 TString calibrationType = "LorentzAngle";
 int nRings[4] = {8,2,6,6};
@@ -214,13 +215,13 @@ int MPTreeDrawer (TString detName, int structId, int layerRing, int stripReadout
         if(!iovWidthIsFixed) iovWidth/=1000.0;         // Converting from /pb to /fb
         totLumi+=iovWidth;                             // Updating total luminosity of all IOVs
 
-
+        fprintf ( logFile,"Checking tree: %s\n", treeName);
         for ( Long64_t entry=0; entry<nEntries; entry++ ) {
         //             printf("  Entry %lld\n",entry);
             tree->GetEntry ( entry );
             if(!isOldFormat) error = treeStruct.error;
             int histoId=histoIdx ( detId );
-            // fprintf ( logFile,"  entry: %lld\thistoId: %d\tvalue: %.3f\terror: %.3f\n",entry,histoId,value,error );
+            fprintf ( logFile,"  entry: %lld\thistoId: %d\tvalue: %.3f\terror: %.3f\n",entry,histoId,value,error );
             if ( histoId<0 ) {
                 continue;
             }
@@ -234,27 +235,31 @@ int MPTreeDrawer (TString detName, int structId, int layerRing, int stripReadout
                 graphLAinput.push_back(graph);
             }
             if ( DetIndex==0 || DetIndex==2 || DetIndex==3 ) {
+                float BScale = 1.f;
+                if(calibrationType=="LorentzAngle") BScale = 3.81;
                 if(iov<nIOVs) {
-                    graphLA.at(histoId)->SetPoint ( iov, totLumi - 0.5*iovWidth, value*3.81 );	// BPIX, TIB, TOB
-                    graphLA.at(histoId)->SetPointError ( iov,0.f,error*3.81 );
+                    graphLA.at(histoId)->SetPoint ( iov, totLumi - 0.5*iovWidth, value*BScale );	// BPIX, TIB, TOB
+                    graphLA.at(histoId)->SetPointError ( iov,0.f,error*BScale );
                 } else {    // For line of input LA value
                 //printf("1. histoId: %d size: %d\n",histoId,(int)graphLAinput.size());
                     Double_t centerY;
                     Double_t centerX;
                     graphLA.at(histoId)->GetPoint(graphLA.at(histoId)->GetN()/2,centerX,centerY);
-                    graphLAinput.at(histoId)->SetPoint ( 0, centerX, value*3.81 );	// BPIX, TIB, TOB
-                    graphLAinput.at(histoId)->SetPointError ( 0,centerX*2.5,error*3.81 );
+                    graphLAinput.at(histoId)->SetPoint ( 0, centerX, value*BScale );	// BPIX, TIB, TOB
+                    graphLAinput.at(histoId)->SetPointError ( 0,centerX*2.5,error*BScale );
                 }
             } else if ( DetIndex==1 ) {
+                float BScale = 1.f;
+                if(calibrationType=="LorentzAngle") BScale = -1.3;
                 if(iov<nIOVs) {
-                    graphLA.at(histoId)->SetPoint ( iov, totLumi + 0.5*iovWidth, value* ( -1.3 ) );	// FPIX
-                    graphLA.at(histoId)->SetPointError ( iov,0.f,error*1.3 );
+                    graphLA.at(histoId)->SetPoint ( iov, totLumi + 0.5*iovWidth, value*BScale );	// FPIX
+                    graphLA.at(histoId)->SetPointError ( iov,0.f,error*std::fabs(BScale) );
                 } else {    // For line of input LA value
                     Double_t centerY;
                     Double_t centerX;
                     graphLA.at(histoId)->GetPoint(graphLA.at(histoId)->GetN()/2,centerX,centerY);
-                    graphLAinput.at(histoId)->SetPoint ( 0, centerX + 0.5*iovWidth, value* ( -1.3 ) );	// FPIX
-                    graphLAinput.at(histoId)->SetPointError ( 0,centerX*2.5,error*1.3 );
+                    graphLAinput.at(histoId)->SetPoint ( 0, centerX + 0.5*iovWidth, value*BScale );	// FPIX
+                    graphLAinput.at(histoId)->SetPointError ( 0,centerX*2.5,error*std::fabs(BScale) );
                 }
             }
         }	  // End of loop over entries
