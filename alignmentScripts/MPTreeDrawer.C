@@ -17,6 +17,8 @@
 #include <exception>
 #include <cstdio>
 #include <cmath>
+#include <algorithm>
+#include <vector>
 
 // #include "/afs/cern.ch/user/n/nbartosi/cms/TkAl/MillePede/CMSSW_5_3_3_patch2/src/DataFormats/DetId/interface/DetId.h"
 // #include "/afs/cern.ch/user/n/nbartosi/cms/TkAl/MillePede/CMSSW_5_3_3_patch2/src/DataFormats/SiPixelDetId/interface/PXBDetId.h"
@@ -41,6 +43,8 @@ int lineColors[8]= {13,kPink-9,kAzure+7,kSpring-6,kOrange+1,kPink-1,kAzure+10,kS
 int fillStyles[2]= {1001,3008};
 TString inputFileName = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1296/jobData/jobm/treeFile_merge.root";
 TString outputPath = "/afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/mp1296/LA_evol_test";
+TFile *inputFile;       // ROOT file (treeFile_merge.root) with the calibration result
+
 std::vector<TString> DetName;
 
 int nPhiParts = 0;      // Number of parts with different calibration values in Phi
@@ -74,18 +78,35 @@ float maxY_det[4] = {0.46,-0.075,0.082,0.11};           // BPIX, FPIX, TIB, TOB
 std::vector<int> iov1stRuns(0);         // Vector of first run numbers of each iov in the file (in the tree names)
 std::vector<int> iov1stRuns_(0);        // Vector of first run numbers of each iov in the file (to be plotted)
 
-struct GRANULAR
+struct POINT2                            // Point represented by 2 values
 {
-    std::vector<double> r;
-    std::vector<double> r_e;
-    std::vector<double> z;
-    std::vector<double> z_e;
-    std::vector<double> phi;
-    std::vector<double> phi_e;
+    POINT2(float v1_=9999.9, float v2_=-9999.9) : v1(v1_), v2(v2_) {};
+    float v1;
+    float v2;
 };
 
-std::vector<GRANULAR> calibOutValues;       // List of distinct values for each granularity direction
-GRANULAR calibInValues;                     // List of distinct values for each granularity direction
+// Struct that contains all distinct calibration values
+// Also contains the ranges of module positions in group of each value
+struct GRANVAL
+{
+    std::vector<double> val;
+    std::vector<double> val_e;
+    std::vector<POINT2> r;
+    std::vector<POINT2> z;
+    std::vector<POINT2> phi;
+    std::vector<int> subDetId;
+};
+
+std::vector<GRANVAL> calibOutValues;       // List of distinct values for each GRANVALity direction
+GRANVAL calibInValues;                     // List of distinct values for each GRANVALity direction
+
+
+TString geometryFileName = "TrackerTree.root";  // ROOT file that contains all information about tracker geometry layout
+TTree* geomTree;
+
+TCanvas* canvas;        // Canvas to which the result will be drawn
+
+bool log_ = false;
 
 //////////////////////////
 // FUNCTIONS DEFINITION //
@@ -98,15 +119,25 @@ GRANULAR calibInValues;                     // List of distinct values for each 
 void setTDRStyle();
 // void tdrGrid(bool gridOn);
 // void fixOverlay();
-int nIOVsInTrees(TFile* file, TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_);
-GRANULAR distValuesFromTrees(TFile* file, TString treeName);
+int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_);
+GRANVAL distValuesFromTrees(TString treeName);
+int plotCalibration( const int subDetId = 1, const int rId = 1, const int zId = 0, const int phiId = 0, const bool toSave = false);
+int analyzeGRANVALity( const int subDetId, const int rId, const int zId, const int phiId, const bool toPrint = false );
+
 
 
 //////////////////////////////
 // FUNCTIONS IMPLEMENTATION //
 //////////////////////////////
 
-int MPTreeDrawer()
+/**
+ * Finds the list of IOVs and analyzed GRANVALity for the selected calibration type, module type and readout mode
+ * @method MPTreeDrawer
+ * @param  calibrationType  LorentzAngle | Backplane
+ * @param  moduleType   Pixel | Strip
+ * @param  stripReadoutMode deco | peak
+ */
+int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = "Pixel", TString stripReadoutMode = "")
 {
     setTDRStyle();
 
@@ -118,31 +149,21 @@ int MPTreeDrawer()
     DetName.push_back("TOB");       // 5
     DetName.push_back("TEC");       // 6
 
-    return 0;
-}
+    TFile* geomFile = new TFile(geometryFileName);
+    if(geomFile->IsZombie()) {
+        printf("ERROR! No geometry file found with name: %s\n", geometryFileName.Data());
+        printf("Rerun MPTreeDrawer(<fileName>) with correct path to the geometry file.\n");
 
-/**
- * Finds the list of IOVs and analyzed granularity for the selected calibration type, module type and readout mode
- * @method analyzeCalibration
- * @param  calibrationType  LorentzAngle | Backplane
- * @param  moduleType   Pixel | Strip
- * @param  stripReadoutMode deco | peak
- */
-int analyzeCalibration(TString calibrationType = "LorentzAngle", TString moduleType = "Pixel", TString stripReadoutMode = "") 
-{
-    // // Validating the detId
-    // if(detId<1 || detId > DetName.size()-1) {
-    //     printf("Wrong detector id. Should be one of the following");
-    //     for(unsigned int i=1; i<DetName.size(); i++) printf("  %d : %s\n", i, DetName.at(i).Data());
-    //         printf("\nStopping...\n");
-    //     return 1;
-    // }
+        return 1;
+    }
 
-    // // Setting the module selection to be drawn
-    // LayerId = layerId;
-    // ZId = zId;
-    // PhiId = phiId;
-    // StripReadMode = stripReadoutMode;
+    TString geometryTreeName = "TrackerTreeGenerator/TrackerTree/TrackerTree";
+    geomTree = (TTree*)geomFile->Get(geometryTreeName);
+    if(!geomTree) {
+        printf("ERROR! No geometry tree found with name: %s\n", geometryTreeName.Data());
+
+        return 1;
+    }
 
     if(stripReadoutMode == "deco") stripReadoutMode = "deconvolution";
 
@@ -151,11 +172,14 @@ int analyzeCalibration(TString calibrationType = "LorentzAngle", TString moduleT
     runsFile = fopen( "runs.txt","w" );        // Run ranges that are used (for calculation of the luminosity)
 
     // Opening the input ROOT file
-    TFile *file = new TFile( inputFileName );
+    inputFile = new TFile( inputFileName );
+
+    // Creating a canvas
+    if(!canvas) canvas = new TCanvas("c1", calibrationType+" calibration", 1000, 800);
 
     // The base of the input tree name
     TString TreeBaseDir("Si"+moduleType+calibrationType+"Calibration"+stripReadoutMode+"_result_");
-    int nIOVs = nIOVsInTrees(file, TreeBaseDir, iov1stRuns, iov1stRuns_);
+    int nIOVs = nIOVsInTrees(TreeBaseDir, iov1stRuns, iov1stRuns_);
     printf("Found %d IOVs with name: %s ...\n",nIOVs, TreeBaseDir.Data());
     // Total luminosity of all IOVs (to be updated)
     // double totLumi=0.0;
@@ -164,13 +188,14 @@ int analyzeCalibration(TString calibrationType = "LorentzAngle", TString moduleT
 
     // Getting the calibration result values for each IOV
     for(int iovId = 0; iovId < nIOVs; iovId++) {
+        if(iovId > 4) break;
 
         printf("Checking IOV: %d\n", iovId);
         TString TreeBaseNameOut = TreeBaseDir;
         TreeBaseNameOut += iov1stRuns.at(iovId);
-        // Filling the granularity with calibration output values/errors
+        // Filling the GRANVALity with calibration output values/errors
         printf("Checking entries from the tree: %s\n",TreeBaseNameOut.Data());
-        GRANULAR distOutValues = distValuesFromTrees(file, TreeBaseNameOut);
+        GRANVAL distOutValues = distValuesFromTrees(TreeBaseNameOut);
 
         
         calibOutValues.push_back(distOutValues); // Adding it to the vector for the current IOV
@@ -178,258 +203,11 @@ int analyzeCalibration(TString calibrationType = "LorentzAngle", TString moduleT
     }
 
     TString TreeBaseNameIn = TreeBaseDir.ReplaceAll("_result_","_input");
-    // Filling the granularity with calibration input values/errors
+    // Getting the calibration input values
     printf("Checking entries from the tree: %s\n",TreeBaseNameIn.Data());
-    GRANULAR distInValues = distValuesFromTrees(file, TreeBaseNameIn);
+    calibInValues = distValuesFromTrees(TreeBaseNameIn);
 
 
-
-    // // Direct values from the tree
-    // UInt_t detId;
-    // Float_t value;
-    // // Struct of additional values from the tree
-    // struct treeStr{
-    //     Float_t delta;
-    //     Float_t error;
-    //     UInt_t paramIndex;
-    // };
-    // Float_t error=0.f;
-    // treeStr treeStruct;
-    // std::vector<TGraphErrors*> graphLA;
-    // std::vector<TGraphErrors*> graphLAinput;
-    // int nDetParts=-1;
-    // bool isOldFormat = false;
-
-    // // Looping over entries in each iov tree
-    // for ( int iov=0; iov<nIOVs+1; iov++ ) {
-    //     char treeName[300];
-    //     sprintf ( treeName,"%s%d",TreeBaseDir.Data(),iovs[iov] );
-    // // Reading tree for input tree
-    //     if(iov==nIOVs) {
-    //         TString TreeBaseDirIn = TreeBaseDir;
-    //         TreeBaseDirIn.ReplaceAll("_result_","_input");
-    //         sprintf ( treeName,"%s",TreeBaseDirIn.Data());
-    //     }
-    //     TTree *tree = 0;
-    //     tree = ( TTree* ) ( TDirectoryFile* ) file->Get ( treeName );
-    //     Long64_t nEntries = tree->GetEntries();
-
-    //     int runNr = (iov<nIOVs)?iovs.at(iov):555;
-    //     if(tree) printf ( "Got Tree %d\twith name: %s for IOV: %d - %lld entries\n",iov,treeName,runNr,nEntries );
-
-    //     fprintf(runsFile,"%d\n",iovs_.at(iov));
-    //     if(iov>=nIOVs-nPointsToSkip && iov<nIOVs) continue;
-
-    //     tree->SetBranchAddress ( "detId",&detId );
-    //     tree->SetBranchAddress ( "value",&value );
-    //     if(tree->GetBranch("error")) isOldFormat = true;
-    //     if(isOldFormat) tree->SetBranchAddress ( "error",&error ); else
-    //     tree->SetBranchAddress ( "treeStruct",&treeStruct );
-
-
-    //     double iovWidth=-1.f;
-    //     if(iovWidthIsFixed || runNr==555) iovWidth = fixedIOVwidth[DetIndex]; 
-    //     else {
-    // // Getting more precise value of luminosity (calculation started from the first IOV run)
-    //         iovWidth = lumisInIOV(iovs_.at(0),iovs_.at(iov+1)) - lumisInIOV(iovs_.at(0),iovs_.at(iov));
-    //         if(iovWidth<0.0) {
-    // // Getting less precise value of luminosity (calculation started from this IOV run)
-    //             iovWidth = lumisInIOV(iovs_.at(iov),iovs_.at(iov+1));
-    //             printf("Less precise estimation of luminosity for IOV: %d (%d-%d)\n",iov+1,iovs_.at(iov),iovs_.at(iov+1));
-    //         }
-    //     }
-    //     if(iovWidth<0 && iov<nIOVs) {
-    //         printf("   ERROR!!! Luminosity for IOV %d with runs: %d - %d not found. Skipping.\n",iov,iovs_.at(iov),iovs_.at(iov+1));
-    //         continue;
-    //     }
-    //     iovWidth*=lumiScale;                           // Correcting luminosity to the real (lumiCalc provides slightly larger value)
-    //     if(!iovWidthIsFixed) iovWidth/=1000.0;         // Converting from /pb to /fb
-    //     totLumi+=iovWidth;                             // Updating total luminosity of all IOVs
-
-    //     fprintf ( logFile,"Checking tree: %s\n", treeName);
-    //     for ( Long64_t entry=0; entry<nEntries; entry++ ) {e
-    //     //             printf("  Entry %lld\n",entry);
-    //         tree->GetEntry ( entry );
-    //         if(!isOldFormat) error = treeStruct.error;
-    //         int histoId=histoIdx ( detId );
-    //         fprintf ( logFile,"  entry: %lld\thistoId: %d\tvalue: %.3f\terror: %.3f\n",entry,histoId,value,error );
-    //         if ( histoId<0 ) {
-    //             continue;
-    //         }
-    //         while(histoId>=(int)graphLA.size() && iov<nIOVs) {
-    //             TGraphErrors* graph = new TGraphErrors ( nIOVs-nPointsToSkip );
-    //             graphLA.push_back(graph);
-    //         }
-    //         while(histoId>=(int)graphLAinput.size() && iov>=nIOVs) {
-    //     //printf("0. histoId: %d size: %d\n",histoId,(int)graphLAinput.size());
-    //             TGraphErrors* graph = new TGraphErrors ( 1 );
-    //             graphLAinput.push_back(graph);
-    //         }
-    //         if ( DetIndex==0 || DetIndex==2 || DetIndex==3 ) {
-    //             float BScale = 1.f;
-    //             if(calibrationType=="LorentzAngle") BScale = 3.81;
-    //             if(iov<nIOVs) {
-    //                 graphLA.at(histoId)->SetPoint ( iov, totLumi - 0.5*iovWidth, value*BScale );	// BPIX, TIB, TOB
-    //                 graphLA.at(histoId)->SetPointError ( iov,0.f,error*BScale );
-    //             } else {    // For line of input LA value
-    //             //printf("1. histoId: %d size: %d\n",histoId,(int)graphLAinput.size());
-    //                 Double_t centerY;
-    //                 Double_t centerX;
-    //                 graphLA.at(histoId)->GetPoint(graphLA.at(histoId)->GetN()/2,centerX,centerY);
-    //                 graphLAinput.at(histoId)->SetPoint ( 0, centerX, value*BScale );	// BPIX, TIB, TOB
-    //                 graphLAinput.at(histoId)->SetPointError ( 0,centerX*2.5,error*BScale );
-    //             }
-    //         } else if ( DetIndex==1 ) {
-    //             float BScale = 1.f;
-    //             if(calibrationType=="LorentzAngle") BScale = -1.3;
-    //             if(iov<nIOVs) {
-    //                 graphLA.at(histoId)->SetPoint ( iov, totLumi + 0.5*iovWidth, value*BScale );	// FPIX
-    //                 graphLA.at(histoId)->SetPointError ( iov,0.f,error*std::fabs(BScale) );
-    //             } else {    // For line of input LA value
-    //                 Double_t centerY;
-    //                 Double_t centerX;
-    //                 graphLA.at(histoId)->GetPoint(graphLA.at(histoId)->GetN()/2,centerX,centerY);
-    //                 graphLAinput.at(histoId)->SetPoint ( 0, centerX + 0.5*iovWidth, value*BScale );	// FPIX
-    //                 graphLAinput.at(histoId)->SetPointError ( 0,centerX*2.5,error*std::fabs(BScale) );
-    //             }
-    //         }
-    //     }	  // End of loop over entries
-    // }	// End of loop over IOVs
-    // nDetParts=graphLA.size();
-    // printf("Found %d different substructures\n",nDetParts);
-    // // if(LayerRing==0) nRings[DetIndex]=nDetParts;        // Updating the number of rings to draw
-    // if(nDetParts<1) {
-    //     fclose(logFile);
-    //     fclose(runsFile);
-    //     return 1;
-    // }
-
-    // float minY_ = minY_det[DetIndex];
-    // float maxY_ = maxY_det[DetIndex];
-
-    // if(minY!=0.f || maxY!=0.f) {
-    //     minY_ = minY;
-    //     maxY_ = maxY;
-    // }
-
-    // if(autoScaleY) {
-    //     minY_=999.9;
-    //     maxY_=-999.9;
-    // }
-    // fprintf ( logFile,"File: %s\n",inputFileName.Data() );
-    // for ( int i=0; i<nDetParts; i++ ) {
-    // // fprintf ( logFile,"ID: %d Values: ",i );
-    //     for ( int j=0; j<graphLA.at(i)->GetN(); j++ ) {
-    // // Updating min and max values of LA for axis of the plot
-    //         Double_t val;
-    //         Double_t null;
-    //         graphLA.at(i)->GetPoint ( j,null,val );
-    //         fprintf(logFile,"detPart: %d\tiov %d\tRun: %d\tValue: %.3f\n",i+1,j+1,iovs.at(j),val);
-    //         if ( val<minY_ && autoScaleY && val!=0.0) {
-    //             minY_=val;
-    //         }
-    //         if ( val>maxY_ && autoScaleY && val!=0.0) {
-    //             maxY_=val;
-    //         }
-    // // fprintf ( logFile," %.3f",val );
-    //     }
-    // // fprintf ( logFile,"\n" );
-    // }	// End of loop over Detector parts
-
-    // if(autoScaleY) {
-    //     minY_= ( minY_>0 ) ?minY_*0.98:minY_*1.02;
-    //     maxY_= ( maxY_>0 ) ?maxY_*1.05:maxY_*0.95;
-    // }
-
-    // //Drawing canvas
-    // //    TCanvas *c1 = new TCanvas ( "c1","Canvas1",1000,600 );
-    // TCanvas *c1 = new TCanvas ( "c1","Canvas1");
-    // // Drawing empty histogram
-    // TString Y_title;
-    // if(calibrationType=="LorentzAngle") Y_title = "tan(#theta_{LA}^{shift}) "; else
-    // if(calibrationType=="Backplane") Y_title = "#DeltaW_{BP}^{shift} "; else
-    // Y_title = "??? ";
-    // drawEmptyHisto ( 0.0,totLumi,"2012 Integrated Luminosity [fb^{-1}]",minY_,maxY_,Y_title,"empty1" );
-    // // Drawing each graph for input values
-    // if(drawInput) {
-    //     for ( int i=0; i<nDetParts; i++ ) {
-    //         setGraphStyle ( graphLAinput.at(i),i,1 );
-    //         graphLAinput.at(i)->SetMarkerStyle(0);
-    //         graphLAinput.at(i)->Draw( "Lsame" );
-    //     }
-    // }
-    // // Drawing each graph for output values
-    // for ( int i=0; i<nDetParts; i++ ) {
-    //     setGraphStyle ( graphLA.at(i),i,0 );
-    //     graphLA.at(i)->Draw ( "Psame" );
-    // }
-
-    // TString structName = ( LayerRing==0 ) ?"L":"R";
-    // TString structNameFull = ( LayerRing==0 ) ?"Layer":"Ring";
-
-    // //Drawing legend pane
-    // TLegend *leg;
-    // leg = new TLegend ( 0.7,0.77,0.98,0.95,NULL,"brNDC" );
-        
-    // int nCols = (nDetParts>3)?2:1;
-
-    // for(int i=0; i<=nDetParts/2; i++) {
-    //     int i2=0;
-    //     TString legName_("");
-    //     if(LayerRing==1) {
-    //         i2 = i+nDetParts/2;
-    //         legName_+="Layer";
-    //     }
-    //     if(LayerRing==0) {
-    //         i2 = nDetParts-1-i;
-    //         legName_+="Ring";
-    //     }
-    //     if(nDetParts<4) {
-    //         i2 = i*2+1;
-    //         i = i2-1;
-    //     }
-    //     char legName[100];
-    //     if(i<nDetParts/2) {
-    //         sprintf(legName,"%s %d",legName_.Data(),i+1);
-    //         leg->AddEntry( graphLA.at(i),legName,"p" );
-    //         sprintf(legName,"%s %d",legName_.Data(),i2+1);
-    //         leg->AddEntry( graphLA.at(i2),legName,"p" );
-    //         if(i==nDetParts/2-1 && nDetParts%2==0) break;
-    //     } else {
-    //         sprintf(legName,"%s %d",legName_.Data(),i+1);
-    //         leg->AddEntry( graphLA.at(i),legName,"p" );
-    //     }
-    // }
-    // setLegendStyle ( leg,nCols,nDetParts);
-
-
-    // if ( drawLegend ) {
-    //     leg->Draw();
-    // }
-
-    // //    // Drawing CMS Preliminary label
-    // //    TLatex *TextCMS = new TLatex(0.2,0.89,"CMS Preliminary 2012");
-    // //    TextCMS->SetTextColor(1);
-    // //    TextCMS->SetNDC();
-    // //    TextCMS->SetTextFont(62);
-    // //    TextCMS->Draw();
-
-    // char Data_[150];
-    // sprintf(Data_,"%s %s %d",DetName.at(DetIndex).Data(),structNameFull.Data(),VLayer);
-    // TLatex *TextData = new TLatex(0.2,0.89,Data_);
-    // TextData->SetTextColor(1);
-    // TextData->SetNDC();
-    // TextData->SetTextFont(62);
-    // TextData->Draw();
-
-    // char savePath[150];
-
-    // gROOT->ProcessLine(".mkdir -p "+outputPath);
-    // sprintf ( savePath,"%s/%s_%s_%s%d%s",outputPath.Data(),calibrationType.Data(),DetName.at(DetIndex).Data(),structName.Data(),VLayer, readoutMode.Data() );
-    // c1->Print( TString ( savePath ) +=".eps" );
-    // //    c1->SaveAs ( TString ( savePath ) +=".pdf" );
-    // //    c1->SaveAs ( TString ( savePath ) +=".C" );
-    // //    c1->SaveAs ( TString ( savePath ) +=".root" );
 
     fclose ( logFile );
 
@@ -438,23 +216,25 @@ int analyzeCalibration(TString calibrationType = "LorentzAngle", TString moduleT
     return 0;
 }
 
+
 /**
  * Finds all iovs stored in the file by the given name template
- * @method iovsFromTreesLike
- * @param  treeBaseName     Template name of the trees ot find
- * @param  iovs     Reference to the vector of IOVs to be filled
- * @return  Number of IOVs that ahve been found
+ * @method nIOVsInTrees
+ * @param  TreeBaseName     Template name of the trees ot find
+ * @param  iovs             Reference to the vector of IOVs in the tree names
+ * @param  iovs_            Reference to the vector of IOVs to be shown on the plot
+ * @return
  */
-int nIOVsInTrees(TFile* file, TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_)
+int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_)
 {
     iovs.clear();       // Cleaning the vector if not empty
     iovs_.clear();      // Cleaning the vector if not empty
-    if(!file) {
+    if(!inputFile) {
         printf("No input file opened.\n Exiting...\n");
         return 0;
     }
     // Getting the list of all stored keys in the file
-    TList *list = file->GetListOfKeys();
+    TList *list = inputFile->GetListOfKeys();
     int nKeys = list->GetSize();
     for( int keyNum=0; keyNum<nKeys; keyNum++ ) {
         TKey* key = ( TKey* ) list->At ( keyNum );
@@ -479,26 +259,24 @@ int nIOVsInTrees(TFile* file, TString treeBaseName, std::vector<int>& iovs, std:
 }
 
 
-
 /**
- * Fills the vector of calibration values for each granularity type
+ * Fills the vector of calibration values for each GRANVALity type
  * @method nDistValuesFromTrees
- * @param  file         TFile that contains the tree
  * @param  treeName     Name of the TTree that contains the values
  * @param  calibValues  Struct that will be filled with the distinct values from the TTree
  * @param  isOldFormat  Swith for the old format (parameter error was stored directly in the tree, instead of a struct)
  * @return  Number of distinct values found in the tree
  */
-GRANULAR distValuesFromTrees(TFile* file, TString treeName)
+GRANVAL distValuesFromTrees(TString treeName)
 {
-    GRANULAR distValues;
+    GRANVAL distValues;
     // Setting the initial values
-    distValues.r = std::vector<double>();
-    distValues.r_e = std::vector<double>();
-    distValues.z = std::vector<double>();
-    distValues.z_e = std::vector<double>();
-    distValues.phi = std::vector<double>();
-    distValues.phi_e = std::vector<double>();
+    distValues.val = std::vector<double>();
+    distValues.val_e = std::vector<double>();
+    distValues.r = std::vector<POINT2>();
+    distValues.z = std::vector<POINT2>();
+    distValues.phi = std::vector<POINT2>();
+    distValues.subDetId = std::vector<int>();
 
     // Parameters to be read from the tree
     UInt_t detId;
@@ -517,7 +295,7 @@ GRANULAR distValuesFromTrees(TFile* file, TString treeName)
 
     // Reading a tree of specified name from the TFile
     TTree *tree = 0;
-    tree = ( TTree* ) ( TDirectoryFile* ) file->Get ( treeName );
+    tree = ( TTree* ) ( TDirectoryFile* ) inputFile->Get ( treeName );
     if(!tree) {
         printf( "  Couldn't find the tree with name: %s\n", treeName.Data() );
         return distValues;
@@ -535,13 +313,141 @@ GRANULAR distValuesFromTrees(TFile* file, TString treeName)
     for ( Long64_t entry=0; entry<nEntries; entry++ ) {
         tree->GetEntry ( entry );
         if(!isOldFormat) error = treeStruct.error;
+        fprintf ( logFile, "    entry: %lld\tvalue: %.3f\terror: %.3f\tdetId: %d\n",entry,value,error,detId );
 
-        // fprintf ( logFile, "    entry: %lld\tvalue: %.3f\terror: %.3f\n",entry,value,error );
+        // Adding to the vector of distinct values if needed
+        unsigned int valIndex = std::find(distValues.val.begin(), distValues.val.end(), value) - distValues.val.begin();
+        bool isInVector = (valIndex < distValues.val.size()) && distValues.val.size() > 0;
+        if(!isInVector) {
+            distValues.val.push_back(value);
+            valIndex = distValues.val.size() - 1;
+            distValues.val_e.push_back(error);
+            distValues.r.push_back(POINT2());
+            distValues.z.push_back(POINT2());
+            distValues.phi.push_back(POINT2());
+            distValues.subDetId.push_back(0);
+        } 
 
+        // Reading the position and subDetId of the module with current calibration value from the geometry Tree
+        TString cutString = "RawId == ";
+        cutString += detId;
+        geomTree->Draw("SubdetId", cutString);
+        int nSelEntries = geomTree->GetSelectedRows();
+        if(nSelEntries!=1) {
+            printf("ERROR! No entry with position information found for module with detId: %d\n", detId);
+            continue;
+        }
+        int subDetId = geomTree->GetV1()[0];
+        distValues.subDetId.at(valIndex) = subDetId;
+
+        geomTree->Draw("PosR:PosZ:PosPhi", cutString);
+        float posR = geomTree->GetV1()[0];
+        float posZ = geomTree->GetV2()[0];
+        float posPhi = geomTree->GetV3()[0];
+        POINT2& R = distValues.r.at(valIndex);
+        POINT2& Z = distValues.z.at(valIndex);
+        POINT2& Phi = distValues.phi.at(valIndex);
+        // Updating the range values for each position component
+        if(posR<R.v1) R.v1 = posR;      // Radius
+        if(posR>R.v2) R.v2 = posR;
+        if(posZ<Z.v1) Z.v1 = posZ;      // Z
+        if(posZ>Z.v2) Z.v2 = posZ;
+        if(posPhi<Phi.v1) Phi.v1 = posPhi;  // Phi
+        if(posPhi>Phi.v2) Phi.v2 = posPhi;
 
     }      // End of loop over entries
 
+    int nDistVals = distValues.val.size();
+    printf("      Number of distinct values: %d\n", nDistVals);
+
+    if(log_) {
+        for(int iVal = 0; iVal<nDistVals; iVal++) {
+            printf("        %d: Val: %.3f += %.2f (subdet: %d)\n",iVal, distValues.val.at(iVal), distValues.val_e.at(iVal), distValues.subDetId.at(iVal));
+            printf("             R: %.3f - %.3f\n", distValues.r.at(iVal).v1, distValues.r.at(iVal).v2);
+            printf("             Z: %.3f - %.3f\n", distValues.z.at(iVal).v1, distValues.z.at(iVal).v2);
+            printf("           Phi: %.3f - %.3f\n", distValues.phi.at(iVal).v1, distValues.phi.at(iVal).v2);
+        }
+    }
+
     return distValues;
+}
+
+
+/**
+ * Plots calibration result and input values for the specified group(s) of the modules
+ * @method plotCalibration
+ * @param  subDetId     DetId of the subdtector (0-6) 0 - all subDet curves will be drawn
+ * @param  rId          Index of the group by the R position
+ * @param  zId          Index of the group by the Z position
+ * @param  phiId        Index of the group by the Phi position
+ * @param  toSave       Whether the plot should be saved automatically
+ * @return  Number of result curves that have been drawn
+ */
+int plotCalibration( const int subDetId, const int rId, const int zId, const int phiId, const bool toSave)
+{
+    // Validating the detId
+    if(subDetId > (int)DetName.size()-1) {
+        printf("Wrong detector id. Should be one of the following:\n");
+        for(unsigned int i=1; i<DetName.size(); i++) printf("  %d : %s\n", i, DetName.at(i).Data());
+        printf("\nExecute plotCalibration() with proper parameters...\n");
+        return 1;
+    }
+
+    // analyzeGRANVALity(false);
+
+
+    return 0;
+}
+
+
+/**
+ * Analyzes maximal number of groups in each dimension (R, Z, Phi) for each subdetector
+ * @method analyzeGRANVALity
+ * @param  toPrint  Whether number of groups should be printed for each subdetector
+ * @return  Total number of 
+ */
+int analyzeGRANVALity( const int subDetId, const int rId, const int zId, const int phiId, const bool toPrint )
+{
+    // // Determining subDetIds
+    // std::vector<int> subDetIds;
+    // // Looping through the IOVs
+    // for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
+    //     // Looping through the values in each IOV to determine number of subDetIds
+    //     GRANVAL& distValues = calibOutValues.at(iovId);
+    //     for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
+    //         int subDetId = distValues.subDetId.at(valId);
+    //         if(std::find(subDetIds.begin(), subDetIds.end(), subDetId) != subDetIds.end()) continue;
+    //         subDetIds.push_back(subDetId);
+    //         // POINT2 R = distValues.r.at(valId);
+    //         // POINT2 Z = distValues.z.at(valId);
+    //         // POINT2 Phi = distValues.phi.at(valId);
+    //         // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\n", valId+1, subDetId, R.v1, R.v2, Z.v1, Z.v2, Phi.v1, Phi.v2);
+    //     }
+    // }
+
+    // // Determining bumber of layers in each subDet
+    // for(int detId = 0; detId < (int)subDetIds.size(); detId++) {
+    //     int subDetId = subDetIds.at(detId);
+    //     std::vector<POINT2> Rs;
+    //     // Looping through the IOVs
+    //     for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
+    //         // Looping through the values in each IOV to determine number of subDetIds
+    //         GRANVAL& distValues = calibOutValues.at(iovId);
+    //         for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
+    //             if(subDetId!=distValues.subDetId) continue;
+    //             POINT2 R = distValues.r.at(valId);
+    //             if(std::find(Rs.begin(), Rs.end(), R) != Rs.end()) continue;
+    //             Rs.push_back(R);
+    //             // POINT2 R = distValues.r.at(valId);
+    //             // POINT2 Z = distValues.z.at(valId);
+    //             // POINT2 Phi = distValues.phi.at(valId);
+    //             // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\n", valId+1, subDetId, R.v1, R.v2, Z.v1, Z.v2, Phi.v1, Phi.v2);
+    //         }
+    //     }
+    // }
+
+
+    return 0;
 }
 
 // /**
@@ -839,4 +745,3 @@ void setTDRStyle() {
     tdrStyle->cd();
 
 }
-
