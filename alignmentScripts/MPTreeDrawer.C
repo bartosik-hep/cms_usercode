@@ -37,7 +37,7 @@
 
 TStyle *tdrStyle;
 int markerColors[2]= {1,2};
-int markerStyles[6][2]= {{20,24},{21,25},{22,26},{23,32}};
+int markerStyles[12]= {20,24,21,25,22,26,23,32};
 int lineStyles[3]= {1,7,3};
 int lineColors[8]= {13,kPink-9,kAzure+7,kSpring-6,kOrange+1,kPink-1,kAzure+10,kSpring+9};
 int fillStyles[2]= {1001,3008};
@@ -56,12 +56,13 @@ int LayerId = 1;	// [BPIX] Layers: 1-3 Rings: 1-8 [FPIX] Side: 0-1 [TIB] Layers:
 int ZId = 0; // Meaning of VLayer: 0-Layer; 1-Ring (Module);
 int PhiId = 0;  // Strip readout mode: 0-peak 1-deco
 int nPointsToSkip=1;	// Number of points that should be skipped from the end
+int maxIOVs = -1;       // Maximum number of IOVs to analyze
 //float lumiScale=0.826;
 float lumiScale=1.0;
 bool drawLegend=true;
 float minY=0.f;
 float maxY=0.f;
-bool autoScaleY = false;
+bool autoScaleY = true;
 bool drawInput = true;      // Whether to draw lines for input LA
 FILE *logFile;
 FILE *runsFile;
@@ -74,6 +75,9 @@ bool iovWidthIsFixed = false;                           // Whether to compute re
 float minY_det[4] = {0.35,-0.095,0.06,0.065};           // BPIX, FPIX, TIB, TOB
 float maxY_det[4] = {0.46,-0.075,0.082,0.11};           // BPIX, FPIX, TIB, TOB
 
+int firstRun = 190000;
+int lastRun = 209091;
+
 
 std::vector<int> iov1stRuns(0);         // Vector of first run numbers of each iov in the file (in the tree names)
 std::vector<int> iov1stRuns_(0);        // Vector of first run numbers of each iov in the file (to be plotted)
@@ -85,23 +89,31 @@ struct POINT2                            // Point represented by 2 values
     float v2;
 };
 
+// Struct that contains ranges that determine the position of the group of the modules
+struct GRANUL
+{
+    int subDetId;
+    POINT2 r;
+    POINT2 z;
+    POINT2 phi;
+};
+
 // Struct that contains all distinct calibration values
 // Also contains the ranges of module positions in group of each value
 struct GRANVAL
 {
     std::vector<double> val;
     std::vector<double> val_e;
-    std::vector<POINT2> r;
-    std::vector<POINT2> z;
-    std::vector<POINT2> phi;
-    std::vector<int> subDetId;
+    std::vector<GRANUL> detPos;
 };
 
-std::vector<GRANVAL> calibOutValues;       // List of distinct values for each GRANVALity direction
-GRANVAL calibInValues;                     // List of distinct values for each GRANVALity direction
+std::vector<GRANVAL> calibOutValues;        // List of distinct output values for each granularity direction
+GRANVAL calibInValues;                      // List of values for each granularity from calibOutValues
+GRANVAL calibInValues_simple;               // List of only distinct input values
+std::vector<GRANUL> allGranularities;       // List of granularities present in the root file
 
-
-TString geometryFileName = "TrackerTree.root";  // ROOT file that contains all information about tracker geometry layout
+// ROOT file that contains all information about tracker geometry layout
+TString geometryFileName = "/afs/cern.ch/user/n/nbartosi/cms/cms_usercode/alignmentScripts/TrackerTree.root";
 TTree* geomTree;
 
 TCanvas* canvas;        // Canvas to which the result will be drawn
@@ -112,18 +124,28 @@ bool log_ = false;
 // FUNCTIONS DEFINITION //
 //////////////////////////
 
-// int histoIdx ( UInt_t detId );
-// void setGraphStyle ( TGraph *graph, int id, int file );
-// void drawEmptyHisto ( float Xmin=0, float Xmax=20, TString xTitle="", float Ymin=0, float Ymax=1, TString yTitle="", TString name="empty" );
-// void setLegendStyle ( TLegend *leg,int ncols, int nDetParts );
+void setGraphStyle ( TGraph *graph, int id, int file );
+void drawEmptyHisto ( float Xmin=0, float Xmax=20, TString xTitle="", float Ymin=0, float Ymax=1, TString yTitle="", TString name="empty" );
+void setLegendStyle ( TLegend *leg, const int ncols = 1, const int nDetParts = 6);
 void setTDRStyle();
 // void tdrGrid(bool gridOn);
 // void fixOverlay();
 int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_);
 GRANVAL distValuesFromTrees(TString treeName);
-int plotCalibration( const int subDetId = 1, const int rId = 1, const int zId = 0, const int phiId = 0, const bool toSave = false);
-int analyzeGRANVALity( const int subDetId, const int rId, const int zId, const int phiId, const bool toPrint = false );
-
+int plotCalibration( const TString granulId,
+    const TString granulParameters = "", 
+    const float scale = 1.f, 
+    const int nCols = 1,
+    const std::string yTitle="result",
+    const std::string histoTitle="",
+    const std::string fileName = "");
+void analyzeGranularity();
+int granulInVector(std::vector<GRANUL>& vector, GRANUL& checkItem );
+bool granulsAreSame(GRANUL& g1, GRANUL& g2, float minD = 0.005);
+bool valsAreClose(float val1, float val2, float minD = 0.005);
+float iovLumiWidth(int run0, int run1, int run2);
+int decodeGranularityList( TString granulId_, std::vector<int>& granulId, 
+    TString granulParameters_, std::vector<std::string>& granulNames, std::vector<int>& granulColours, std::vector<int>& granulStyles );
 
 
 //////////////////////////////
@@ -181,31 +203,61 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
     TString TreeBaseDir("Si"+moduleType+calibrationType+"Calibration"+stripReadoutMode+"_result_");
     int nIOVs = nIOVsInTrees(TreeBaseDir, iov1stRuns, iov1stRuns_);
     printf("Found %d IOVs with name: %s ...\n",nIOVs, TreeBaseDir.Data());
-    // Total luminosity of all IOVs (to be updated)
-    // double totLumi=0.0;
-
 
 
     // Getting the calibration result values for each IOV
     for(int iovId = 0; iovId < nIOVs; iovId++) {
-        if(iovId > 4) break;
+        if(maxIOVs>=0 && iovId > maxIOVs) break;
 
-        printf("Checking IOV: %d\n", iovId);
+        printf("Checking IOV: %d / %d\n", iovId+1,nIOVs);
         TString TreeBaseNameOut = TreeBaseDir;
         TreeBaseNameOut += iov1stRuns.at(iovId);
-        // Filling the GRANVALity with calibration output values/errors
+        // Filling the Granularity with calibration output values/errors
         printf("Checking entries from the tree: %s\n",TreeBaseNameOut.Data());
         GRANVAL distOutValues = distValuesFromTrees(TreeBaseNameOut);
 
-        
         calibOutValues.push_back(distOutValues); // Adding it to the vector for the current IOV
 
     }
 
-    TString TreeBaseNameIn = TreeBaseDir.ReplaceAll("_result_","_input");
     // Getting the calibration input values
+    TString TreeBaseNameIn = TreeBaseDir.ReplaceAll("_result_","_input");
     printf("Checking entries from the tree: %s\n",TreeBaseNameIn.Data());
-    calibInValues = distValuesFromTrees(TreeBaseNameIn);
+    calibInValues_simple = distValuesFromTrees(TreeBaseNameIn);
+
+
+
+    analyzeGranularity();
+    // // Checking all granularities in the calibration result
+    // printf("\nAll granularities (%d) in the file:\n", (int)allGranularities.size());
+    // int nSameR = 0;
+    // int nSameZ = 0;
+    // int nSamePhi = 0;
+    // // Additional formats for different layers, rings and phi sections
+    // std::vector<std::string> addStr;
+    // addStr.push_back("");
+    // addStr.push_back(" ");
+    // int iR = 0, iZ = 0, iPhi = 0;       // Index of format string added before R,Z Z, Phi range
+    // for(int iG = 0; iG < (int)allGranularities.size(); iG++){
+    //     GRANUL gr = allGranularities.at(iG);
+
+    //     // Deciding on format to add before layer, ring, phi section
+    //     if(iG>0) {
+    //         if(gr.subDetId != allGranularities.at(iG-1).subDetId) { nSameR=0; nSameZ=0; nSamePhi=0; printf("\n");}
+    //         if(valsAreClose(gr.r.v1, allGranularities.at(iG-1).r.v1) ) nSameR++; 
+    //         else if(nSameR>0) {nSameR=0; nSameZ=0; nSamePhi=0; iR = 1 - iR;}
+    //         if(valsAreClose(gr.z.v1, allGranularities.at(iG-1).z.v1) ) nSameZ++; 
+    //         else if(nSameZ>0) {nSameR=0; nSameZ=0; nSamePhi=0; iZ = 1 - iZ;};
+    //         if(valsAreClose(gr.phi.v1, allGranularities.at(iG-1).phi.v1) ) nSamePhi++;
+    //         else if(nSamePhi>0) {nSameR=0; nSameZ=0; nSamePhi=0; iPhi = 1 - iPhi;};
+    //     }
+    //     printf("  %d.\tdetId: %d\t%sR: [%.2f|%.2f]   \t%sZ: [%.2f|%.2f]   \t%sPhi: [%.2f|%.2f]\n", iG, gr.subDetId, addStr.at(iR).c_str(), 
+    //         gr.r.v1, gr.r.v2, addStr.at(iZ).c_str(),
+    //         gr.z.v1, gr.z.v2, addStr.at(iZ).c_str(), 
+    //         gr.phi.v1, gr.phi.v2);
+    // }
+    // printf("\nPlot calibration values for the groups specifying its ids and names:\n");
+    // printf("  plotCalibration(\"0,1,2\",\"Ring 1|0|1, Ring 2|1|1, Ring 3|2|1\",\"test1\")  [EXAMPLE (No title, No saving)]\n");
 
 
 
@@ -251,9 +303,15 @@ int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>&
     int nIOVs = iovs.size();
 
     // Updating the the first run number of the first IOV to more meaningful value
-    if(nIOVs>3) iovs_.at(0) = iovs.at(1) - std::abs( iovs.at(2) - iovs.at(1) );
-    // Adding on more run to the end as the last run of the last IOV
-    if(nIOVs>2) iovs_.push_back( iovs.at(nIOVs-1) + std::abs( iovs.at(nIOVs-1) - iovs.at(nIOVs-2) ) );
+    if(nIOVs>3) {
+        if(firstRun > 0) iovs_.at(0) = firstRun; 
+        else iovs_.at(0) = iovs.at(1) - std::abs( iovs.at(2) - iovs.at(1) );
+    }
+    // Adding one more run to the end as the last run of the last IOV
+    if(nIOVs>2) {
+        if(lastRun > 0) iovs_.push_back(lastRun);
+         else iovs_.push_back( iovs.at(nIOVs-1) + std::abs( iovs.at(nIOVs-1) - iovs.at(nIOVs-2) ) );
+    }
 
     return nIOVs;
 }
@@ -273,10 +331,7 @@ GRANVAL distValuesFromTrees(TString treeName)
     // Setting the initial values
     distValues.val = std::vector<double>();
     distValues.val_e = std::vector<double>();
-    distValues.r = std::vector<POINT2>();
-    distValues.z = std::vector<POINT2>();
-    distValues.phi = std::vector<POINT2>();
-    distValues.subDetId = std::vector<int>();
+    distValues.detPos = std::vector<GRANUL>();
 
     // Parameters to be read from the tree
     UInt_t detId;
@@ -317,15 +372,17 @@ GRANVAL distValuesFromTrees(TString treeName)
 
         // Adding to the vector of distinct values if needed
         unsigned int valIndex = std::find(distValues.val.begin(), distValues.val.end(), value) - distValues.val.begin();
-        bool isInVector = (valIndex < distValues.val.size()) && distValues.val.size() > 0;
+        bool isInVector = valIndex < distValues.val.size() && distValues.val.size() > 0;
         if(!isInVector) {
             distValues.val.push_back(value);
             valIndex = distValues.val.size() - 1;
             distValues.val_e.push_back(error);
-            distValues.r.push_back(POINT2());
-            distValues.z.push_back(POINT2());
-            distValues.phi.push_back(POINT2());
-            distValues.subDetId.push_back(0);
+            GRANUL modules;
+            modules.subDetId = 0;
+            modules.r = POINT2();
+            modules.z = POINT2();
+            modules.phi = POINT2();
+            distValues.detPos.push_back(modules);
         } 
 
         // Reading the position and subDetId of the module with current calibration value from the geometry Tree
@@ -338,15 +395,15 @@ GRANVAL distValuesFromTrees(TString treeName)
             continue;
         }
         int subDetId = geomTree->GetV1()[0];
-        distValues.subDetId.at(valIndex) = subDetId;
+        distValues.detPos.at(valIndex).subDetId = subDetId;
 
         geomTree->Draw("PosR:PosZ:PosPhi", cutString);
         float posR = geomTree->GetV1()[0];
         float posZ = geomTree->GetV2()[0];
         float posPhi = geomTree->GetV3()[0];
-        POINT2& R = distValues.r.at(valIndex);
-        POINT2& Z = distValues.z.at(valIndex);
-        POINT2& Phi = distValues.phi.at(valIndex);
+        POINT2& R = distValues.detPos.at(valIndex).r;
+        POINT2& Z = distValues.detPos.at(valIndex).z;
+        POINT2& Phi = distValues.detPos.at(valIndex).phi;
         // Updating the range values for each position component
         if(posR<R.v1) R.v1 = posR;      // Radius
         if(posR>R.v2) R.v2 = posR;
@@ -362,10 +419,10 @@ GRANVAL distValuesFromTrees(TString treeName)
 
     if(log_) {
         for(int iVal = 0; iVal<nDistVals; iVal++) {
-            printf("        %d: Val: %.3f += %.2f (subdet: %d)\n",iVal, distValues.val.at(iVal), distValues.val_e.at(iVal), distValues.subDetId.at(iVal));
-            printf("             R: %.3f - %.3f\n", distValues.r.at(iVal).v1, distValues.r.at(iVal).v2);
-            printf("             Z: %.3f - %.3f\n", distValues.z.at(iVal).v1, distValues.z.at(iVal).v2);
-            printf("           Phi: %.3f - %.3f\n", distValues.phi.at(iVal).v1, distValues.phi.at(iVal).v2);
+            printf("        %d: Val: %.3f += %.2f (subdet: %d)\n",iVal, distValues.val.at(iVal), distValues.val_e.at(iVal), distValues.detPos.at(iVal).subDetId);
+            printf("             R: %.3f - %.3f\n", distValues.detPos.at(iVal).r.v1, distValues.detPos.at(iVal).r.v2);
+            printf("             Z: %.3f - %.3f\n", distValues.detPos.at(iVal).z.v1, distValues.detPos.at(iVal).z.v2);
+            printf("           Phi: %.3f - %.3f\n", distValues.detPos.at(iVal).phi.v1, distValues.detPos.at(iVal).phi.v2);
         }
     }
 
@@ -376,210 +433,354 @@ GRANVAL distValuesFromTrees(TString treeName)
 /**
  * Plots calibration result and input values for the specified group(s) of the modules
  * @method plotCalibration
- * @param  subDetId     DetId of the subdtector (0-6) 0 - all subDet curves will be drawn
- * @param  rId          Index of the group by the R position
- * @param  zId          Index of the group by the Z position
- * @param  phiId        Index of the group by the Phi position
- * @param  toSave       Whether the plot should be saved automatically
- * @return  Number of result curves that have been drawn
+ * @param  granulId        [description]
+ * #param  granulNames     [description]
+ * @param  toSave          [description]
+ * @return                 [description]
  */
-int plotCalibration( const int subDetId, const int rId, const int zId, const int phiId, const bool toSave)
+int plotCalibration( const TString granulId_, const TString granulParameters_, const float scale, const int nCols, 
+                    const std::string yTitle, const std::string histoTitle, const std::string fileName)
 {
-    // Validating the detId
-    if(subDetId > (int)DetName.size()-1) {
-        printf("Wrong detector id. Should be one of the following:\n");
-        for(unsigned int i=1; i<DetName.size(); i++) printf("  %d : %s\n", i, DetName.at(i).Data());
-        printf("\nExecute plotCalibration() with proper parameters...\n");
-        return 1;
+    std::vector<int> granulId(0);
+    std::vector<int> granulColours(0);
+    std::vector<int> granulStyles(0);
+    std::vector<std::string> granulNames(0);
+    const int nCurves = decodeGranularityList(granulId_, granulId, granulParameters_, granulNames, granulColours, granulStyles);
+
+
+    printf("  Plotting results for %d granularities:\n", nCurves);
+    for(int iG = 0; iG < nCurves; iG++) {
+        printf("    %d. Id: %d\tName: %s\tColour: %d\tStyle: %d\n", 
+            iG, granulId.at(iG), granulNames.at(iG).c_str(), granulColours.at(iG), granulStyles.at(iG) );
+    }
+    printf("\n");
+
+    // Initializing vector of TGraphs
+    std::vector<TGraphErrors*> graphsOut(nCurves);
+    std::vector<TGraphErrors*> graphsIn(nCurves);
+
+    // Creating the TGraphs in the vector
+    for(int iG=0; iG < (int)graphsOut.size(); iG++) {
+        graphsOut.at(iG) = new TGraphErrors();
+        graphsIn.at(iG) = new TGraphErrors();
     }
 
-    // analyzeGRANVALity(false);
+    float totLumi = 0.f;
 
+    // Determining the range of the Y axis
+    float minY_ = minY_det[DetIndex];
+    float maxY_ = maxY_det[DetIndex];
+    if(minY!=0.f || maxY!=0.f) {
+        minY_ = minY;
+        maxY_ = maxY;
+    }
+    if(autoScaleY) {
+        minY_=999.9;
+        maxY_=-999.9;
+    }
+
+    // Looping through the IOVs of the output calibration values
+    for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
+        // Looping through the values in each IOV to determine number of subDetIds
+        GRANVAL& distValues = calibOutValues.at(iovId);
+        for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
+            GRANUL& theModules = distValues.detPos.at(valId);
+            // Getting the id of the granularity in list of all granularities
+            int theGranulId = granulInVector(allGranularities, theModules);
+            // Getting index of this granularity id in the list of granularities to be plotted
+            int theGranulIndex = std::find(granulId.begin(), granulId.end(), theGranulId) - granulId.begin();
+            if(theGranulIndex>=nCurves) continue;   // Skipping values that are not for granularity from the plotting list
+            
+            // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\tVal: %.2f +- %.2f\n", 
+                // theGranulIndex, theModules.subDetId, theModules.r.v1, theModules.r.v2, theModules.z.v1, theModules.z.v2, theModules.phi.v1, theModules.phi.v2,
+                // distValues.val.at(valId), distValues.val_e.at(valId));
+
+            TGraphErrors* graph = graphsOut.at(theGranulIndex);
+            if((int)iov1stRuns_.size() < iovId) {
+                printf("Requested run number of non-existing IOV: %d. Stopping...\n", iovId);
+                break;
+            }
+
+            float lumiWidth = iovLumiWidth(iov1stRuns_.at(0), iov1stRuns_.at(iovId), iov1stRuns_.at(iovId+1));
+            if(lumiWidth < 0.f) continue;       // Skipping IOV if its luminosity couldn't be determined
+
+            float lumiPoint = totLumi + 0.5*lumiWidth;
+            totLumi += lumiWidth;
+
+            // Setting the values to the additional point in the TGraph
+            int nPoints = graph->GetN();
+            float val = scale*distValues.val.at(iovId);
+            float val_e = scale*distValues.val_e.at(iovId);
+            graph->SetPoint(nPoints, lumiPoint, val);
+            graph->SetPointError(nPoints, 0.f, val_e);
+            // printf("      Set point %d to values: x: %.3f y: %.3f\n", nPoints, lumiPoint, val);
+
+            // Updating the Y axis range
+            if ( val - val_e < minY_ && autoScaleY && val != 0.f) {
+                minY_ = val - val_e;
+            }
+            if ( val + val_e > maxY_ && autoScaleY && val != 0.0) {
+                maxY_ = val + val_e;
+            }
+
+        }       // End of loop over distinct values in the IOV
+    }       // End of loop over IOVs
+
+    // Autoscaling the Y axis range
+    if(autoScaleY) {
+        minY_= ( minY_>0 ) ?minY_*0.98:minY_*1.02;
+        maxY_= ( maxY_>0 ) ?maxY_*1.05:maxY_*0.95;
+    }
+
+    // Drawing the axis histogram
+    drawEmptyHisto ( 0.0,totLumi,"2012 Integrated Luminosity [fb^{-1}]",minY_,maxY_,yTitle.c_str(),"empty1" );
+
+    // Creating a legend pane
+    TLegend *leg = new TLegend ( 0.7, 0.77, 0.98, 0.95, NULL, "brNDC" );
+
+    // Drawing each calibration output value
+    int nPlotted = 0;
+    for(int iC = 0; iC < nCurves; iC++) {
+        TGraphErrors* graph = graphsOut.at(iC);
+        if(graph->GetN() < 1) continue;
+        nPlotted++;
+
+        setGraphStyle(graph, granulColours.at(iC), granulStyles.at(iC));
+        graph->Draw("Psame");
+        leg->AddEntry(graph, granulNames.at(iC).c_str(), "p");
+    }
+        
+    setLegendStyle(leg, nCols, nPlotted);
+
+    if (drawLegend) leg->Draw();
+
+    printf("Plotted %d curves out of %d output calibration curves.\n", nPlotted, nCurves);
+
+
+    // // Drawing CMS Preliminary label
+    // TLatex *TextCMS = new TLatex(0.2,0.89,"CMS Preliminary 2012");
+    // TextCMS->SetTextColor(1);
+    // TextCMS->SetNDC();
+    // TextCMS->SetTextFont(62);
+    // TextCMS->Draw();
+
+    TLatex *TextData = new TLatex(0.2,0.89,histoTitle.c_str());
+    TextData->SetTextColor(1);
+    TextData->SetNDC();
+    TextData->SetTextFont(62);
+    TextData->Draw();
+
+
+    if(fileName == "") return nPlotted;
+
+    // Creating the output folder if it doesn't exist
+    gROOT->ProcessLine(".mkdir -p "+outputPath);
+    // Saving the canvas to file
+    canvas->Print(outputPath+"/"+fileName+".eps");
+    canvas->Clear();
 
     return 0;
 }
 
 
 /**
- * Analyzes maximal number of groups in each dimension (R, Z, Phi) for each subdetector
+ * Analyzes groups of modules in each dimension (R, Z, Phi) that has distinct caibration value
  * @method analyzeGRANVALity
- * @param  toPrint  Whether number of groups should be printed for each subdetector
- * @return  Total number of 
  */
-int analyzeGRANVALity( const int subDetId, const int rId, const int zId, const int phiId, const bool toPrint )
+void analyzeGranularity()
 {
-    // // Determining subDetIds
-    // std::vector<int> subDetIds;
-    // // Looping through the IOVs
-    // for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
-    //     // Looping through the values in each IOV to determine number of subDetIds
-    //     GRANVAL& distValues = calibOutValues.at(iovId);
-    //     for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
-    //         int subDetId = distValues.subDetId.at(valId);
-    //         if(std::find(subDetIds.begin(), subDetIds.end(), subDetId) != subDetIds.end()) continue;
-    //         subDetIds.push_back(subDetId);
-    //         // POINT2 R = distValues.r.at(valId);
-    //         // POINT2 Z = distValues.z.at(valId);
-    //         // POINT2 Phi = distValues.phi.at(valId);
-    //         // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\n", valId+1, subDetId, R.v1, R.v2, Z.v1, Z.v2, Phi.v1, Phi.v2);
-    //     }
-    // }
+    std::vector<GRANUL> selModules (0);
 
-    // // Determining bumber of layers in each subDet
-    // for(int detId = 0; detId < (int)subDetIds.size(); detId++) {
-    //     int subDetId = subDetIds.at(detId);
-    //     std::vector<POINT2> Rs;
-    //     // Looping through the IOVs
-    //     for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
-    //         // Looping through the values in each IOV to determine number of subDetIds
-    //         GRANVAL& distValues = calibOutValues.at(iovId);
-    //         for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
-    //             if(subDetId!=distValues.subDetId) continue;
-    //             POINT2 R = distValues.r.at(valId);
-    //             if(std::find(Rs.begin(), Rs.end(), R) != Rs.end()) continue;
-    //             Rs.push_back(R);
-    //             // POINT2 R = distValues.r.at(valId);
-    //             // POINT2 Z = distValues.z.at(valId);
-    //             // POINT2 Phi = distValues.phi.at(valId);
-    //             // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\n", valId+1, subDetId, R.v1, R.v2, Z.v1, Z.v2, Phi.v1, Phi.v2);
-    //         }
-    //     }
-    // }
+    // Looping through the IOVs
+    for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
+        // Looping through the values in each IOV to determine number of subDetIds
+        GRANVAL& distValues = calibOutValues.at(iovId);
+        for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
+            GRANUL& theModules = distValues.detPos.at(valId);
+            if(granulInVector(selModules, theModules) >= 0) continue;       // If this group is already selected
 
+            selModules.push_back(theModules);
+            // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\n", valId+1, subDetId, R.v1, R.v2, Z.v1, Z.v2, Phi.v1, Phi.v2);
+        }
+    }
 
-    return 0;
+    allGranularities = selModules;
+
+    // Checking all granularities in the calibration result
+    printf("\nAll granularities (%d) in the file:\n", (int)allGranularities.size());
+    int nSameR = 0;
+    int nSameZ = 0;
+    int nSamePhi = 0;
+    // Additional formats for different layers, rings and phi sections
+    std::vector<std::string> addStr;
+    addStr.push_back("");
+    addStr.push_back(" ");
+    int iR = 0, iZ = 0, iPhi = 0;       // Index of format string added before R,Z Z, Phi range
+    for(int iG = 0; iG < (int)allGranularities.size(); iG++){
+        GRANUL gr = allGranularities.at(iG);
+
+        // Deciding on format to add before layer, ring, phi section
+        if(iG>0) {
+            if(gr.subDetId != allGranularities.at(iG-1).subDetId) { nSameR=0; nSameZ=0; nSamePhi=0; printf("\n");}
+            if(valsAreClose(gr.r.v1, allGranularities.at(iG-1).r.v1) ) nSameR++; 
+            else if(nSameR>0) {nSameR=0; nSameZ=0; nSamePhi=0; iR = 1 - iR;}
+            if(valsAreClose(gr.z.v1, allGranularities.at(iG-1).z.v1) ) nSameZ++; 
+            else if(nSameZ>0) {nSameR=0; nSameZ=0; nSamePhi=0; iZ = 1 - iZ;};
+            if(valsAreClose(gr.phi.v1, allGranularities.at(iG-1).phi.v1) ) nSamePhi++;
+            else if(nSamePhi>0) {nSameR=0; nSameZ=0; nSamePhi=0; iPhi = 1 - iPhi;};
+        }
+        printf("  %d.\tdetId: %d\t%sR: [%.2f|%.2f]   \t%sZ: [%.2f|%.2f]   \t%sPhi: [%.2f|%.2f]\n", iG, gr.subDetId, addStr.at(iR).c_str(), 
+            gr.r.v1, gr.r.v2, addStr.at(iZ).c_str(),
+            gr.z.v1, gr.z.v2, addStr.at(iZ).c_str(), 
+            gr.phi.v1, gr.phi.v2);
+    }
+    printf("\nPlot calibration values for the groups specifying its ids and names:\n");
+    printf("  plotCalibration(\"0,1,2\",\"Ring 1|0|1, Ring 2|1|1, Ring 3|2|1\",\"test1\")  [EXAMPLE (No title, No saving)]\n");
+
 }
 
-// /**
-//  * Index of the histogram that should contain the value of the module
-//  * @method histoIdx
-//  * @param  detId
-//  * @return
-//  */
-// int histoIdx ( UInt_t detId )
-// {
-//     DetId det_ ( detId );
-// //    fprintf(logFile,"  detId: %d\tdet: %d\tsubDetId: %d\t", detId, det_.det(), det_.subdetId());
-//     if ( det_.det() !=DetId::Tracker ) {
-// //        fprintf(logFile,"\n");
-//         return -1;
-//     }
 
-//     int id=-1;
-//     int layer=-1;
-//     int ring=-1;
+/**
+ * Calculates the luminosity for a given run range
+ * @method iovLumiWidth
+ * @param  run0         First run of the first IOV
+ * @param  run1         First run of the given IOV
+ * @param  run2         Last run of the given IOV
+ * @return              Lumonisity of the given run range. -1 if luminosity couldn't be determined
+ */
+float iovLumiWidth(int run0, int run1, int run2) {
+    float lumiWidth = -1.f;
 
-//     switch(DetIndex) {
-//         case 0: if(det_.subdetId() == PixelSubdetector::PixelBarrel) {
-//             PXBDetId det(detId);
-//             layer = det.layer();
-//             ring = det.module();
-//             if(LayerRing==0 && layer==VLayer) id = ring-1;
-//             if(LayerRing==1 && ring==VLayer) id = layer-1;
-//         } break;
-//         case 1: if(det_.subdetId() == PixelSubdetector::PixelEndcap) {
-//             PXFDetId det(detId);
-//             id = det.side()-1;
-//         } break;
-//         case 2: if(det_.subdetId() == StripSubdetector::TIB) {
-//             TIBDetId det(detId);
-//             layer = det.layer();
-//             ring = det.module();
-//             int side = det.side();
-// //            fprintf(logFile,"layer: %d\tring: %d\tside: %d",layer,ring,side);
-//             int modulesInStruct = 6/nRings[DetIndex];
+    float lumi1 = lumisInIOV(run0, run1);
+    if(run0 == run1) lumi1 = 0.f;
+    float lumi2 = lumisInIOV(run0, run2);
+    lumiWidth = std::fabs(lumi2 - lumi1);
+    if(lumi1 < 0.f || lumi2 < 0.f) {
+        printf("Couldn't get precise luminosity for the run range: [%d - %d] with starting run: %d\nWill try to use less precise estimation...\n", run1, run2, run0);
+        lumiWidth = lumisInIOV(run1, run2);
+        if(lumiWidth < 0.f) {
+            printf("Couldn't get luminosity for the run range: [%d - %d]\nWill skip this IOV...\n", run1, run2);
+        }
+    }
 
-//             if(side==1) ring = 3-ring; else
-//             if(side==2) ring = 3+ring-1;
-//             ring = ring/modulesInStruct;
+    lumiWidth/=1000.f;      // Converting 1/fb
 
-//             if(LayerRing==0 && layer==VLayer) id = ring;
-//             if(LayerRing==1 && ring+1==VLayer) id = layer-1;
-//         } break;
-//         case 3: if(det_.subdetId() == StripSubdetector::TOB) {
-//             TOBDetId det(detId);
-//             layer = det.layer();
-//             ring = det.module();
-//             int side = det.side();
-// //            fprintf(logFile,"layer: %d\tring: %d\tside: %d\t",layer,ring,side);
-//             int modulesInStruct = 12/nRings[DetIndex];
+    return lumiWidth;
+}
 
-//             if(side==1) ring = 6-ring; else
-//             if(side==2) ring = 6+ring-1;
-//             ring = ring/modulesInStruct;
 
-//             if(LayerRing==0 && layer==VLayer) id = ring;
-//             if(LayerRing==1 && ring+1==VLayer) id = layer-1;
-//         } break;
-//     }
-// //    fprintf(logFile,"\n");
+/**
+ * Checks whether the granularity struct is in the vector of granularities
+ * @method granulInVector
+ * @param  vector       Vector of granularities to be checked
+ * @param  checkItem    Granularity struct to be checked
+ * @return      Index of checkItem in vector. If -1, not in vector.
+ */
+int granulInVector(std::vector<GRANUL>& vector, GRANUL& checkItem )
+{
+    int index = -1;
 
-//     return id;
-// }
+    // Looping through the items of the vector
+    for(int iG = 0; iG < (int)vector.size(); iG++) {
+        GRANUL item = vector.at(iG);
 
-// void setGraphStyle ( TGraph *graph, int id, int file )
-// {
-//     int structId = -1;
-//     if(LayerRing==0) structId = ( id<nRings[DetIndex]/2 )?id:nRings[DetIndex]-1-id; else structId = id/2;
+        if(!granulsAreSame(item, checkItem)) continue;
 
-//     int Zpart = ( id<nRings[DetIndex]/2 )?0:1;
-//     if(LayerRing==1) Zpart = id%2;
-//     if(LayerRing==0 && nRings[DetIndex]%2!=0) {
-//         Zpart=0;
-//         structId = id;
-//     }
+        index = iG;
+        break;
+    }
 
-//     graph->SetMarkerStyle ( markerStyles[structId][Zpart] );
-// //    graph->SetMarkerSize ( 1 );
-//     graph->SetMarkerColor ( lineColors[structId] );
-// //    graph->SetFillStyle ( fillStyles[Zpart] );
-//     graph->SetLineColor ( lineColors[structId] );
-//     graph->SetLineWidth ( 2 );
-//     graph->SetLineStyle ( lineStyles[0] );
-//     if(file>0) graph->SetLineStyle ( lineStyles[Zpart] );
-// //    graph->SetFillColor ( lineColors[structId] );
-// //
-// //    graph->SetLineWidth ( file+1 );
-// }
+    return index;
+}
 
-// void drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float Ymax, TString yTitle, TString name )
-// {
-//     printf ( "Setting empty histo: X: %.2f-%.2f\tY: %.2f-%.2f\n",Xmin,Xmax,Ymin,Ymax );
-//     printf("Total luminosity to be plotted: %.3f\n",Xmax);
-//     printf("Luminosity scale used: %.2f\n",lumiScale);
+/**
+ * Checks whether the two granularity structs are same
+ * @method granulsAreSame
+ * @param  g1   First granularity struct
+ * @param  g2   Second granularity struct
+ * @param  minD Minimal difference between float parameters of the granularities to be treated as different
+ * @return      True if both are same
+ */
+bool granulsAreSame(GRANUL& g1, GRANUL& g2, float minD)
+{
+    if(g1.subDetId != g2.subDetId) return false;
 
-//     Xmax*=1.02;	  // Increasing max lumi to have free space
-//     gStyle->SetOptStat ( 0 );
-//     //    TGaxis::SetMaxDigits ( 4 );
+    if(!valsAreClose( g1.r.v1, g2.r.v1, minD )) return false;
+    if(!valsAreClose( g1.r.v2, g2.r.v2, minD )) return false;
 
-//     TH1F *histo = new TH1F ( name, xTitle, 1, Xmin, Xmax );
-//     TAxis *xAx = histo->GetXaxis();
-//     TAxis *yAx = histo->GetYaxis();
-//     xAx->SetTitle ( xTitle );
-//     //    xAx->SetTitleOffset ( 1.1 );
-//     //    xAx->SetNdivisions ( 510 );
-//     yAx->SetTitle ( yTitle );
-//     //    yAx->SetTitleOffset ( 1.15 );
-//     //    yAx->SetNdivisions ( 510 );
-//     histo->SetMinimum ( Ymin );
-//     histo->SetMaximum ( Ymax );
-//     histo->Draw ( "AXIS" );
-// }
+    if(!valsAreClose( g1.z.v1, g2.z.v1, minD )) return false;
+    if(!valsAreClose( g1.z.v2, g2.z.v2, minD )) return false;
 
-// void setLegendStyle ( TLegend *leg,int ncols, int nDetParts )
-// {
-//     leg->SetTextFont ( 42 );
-// //    leg->SetTextSize ( 0.04 );
-//     leg->SetFillStyle ( 1001 );
-//     leg->SetBorderSize ( 1 );
-// //    leg->SetLineColor ( 1 );
-//     leg->SetFillColor ( 0 );
-//     leg->SetNColumns ( ncols );
-//     if(ncols==1) {
-//         leg->SetX1(leg->GetX1() + 0.5*(leg->GetX2() - leg->GetX1() ));
-//     }
-//     leg->SetY1(leg->GetY2() - nDetParts/ncols*(0.05));
-// }
+    if(!valsAreClose( g1.phi.v1, g2.phi.v1, minD )) return false;
+    if(!valsAreClose( g1.phi.v2, g2.phi.v2, minD )) return false;
+
+    return true;
+}
+
+
+/**
+ * Checks whether two values are close
+ * @method valsAreClose
+ * @param  val1     First value
+ * @param  val2     Second value
+ * @param  minD     Minimal distance betwwen values to be treated as different
+ * @return  True if values are close
+ */
+bool valsAreClose(float val1, float val2, float minD)
+{
+    if(std::fabs((val1 - val2)/val1) > minD) return false;
+    return true;
+}
+
+void setGraphStyle ( TGraph *graph, int colourId, int styleId )
+{
+    graph->SetMarkerColor(lineColors[colourId]);
+    graph->SetLineColor(lineColors[colourId]);
+    graph->SetMarkerStyle(markerStyles[styleId]);
+    graph->SetLineStyle(lineStyles[styleId]);
+    graph->SetLineWidth(2.f);
+
+    return;
+}
+
+void drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float Ymax, TString yTitle, TString name )
+{
+    printf ( "Setting empty histo: X: %.2f-%.2f\tY: %.2f-%.2f\n",Xmin,Xmax,Ymin,Ymax );
+    printf("Total luminosity to be plotted: %.3f\n",Xmax);
+    printf("Luminosity scale used: %.2f\n",lumiScale);
+
+    Xmax*=1.02;	  // Increasing max lumi to have free space
+    gStyle->SetOptStat ( 0 );
+    //    TGaxis::SetMaxDigits ( 4 );
+
+    TH1F *histo = new TH1F ( name, xTitle, 1, Xmin, Xmax );
+    TAxis *xAx = histo->GetXaxis();
+    TAxis *yAx = histo->GetYaxis();
+    xAx->SetTitle ( xTitle );
+    //    xAx->SetTitleOffset ( 1.1 );
+    //    xAx->SetNdivisions ( 510 );
+    yAx->SetTitle ( yTitle );
+    //    yAx->SetTitleOffset ( 1.15 );
+    //    yAx->SetNdivisions ( 510 );
+    histo->SetMinimum ( Ymin );
+    histo->SetMaximum ( Ymax );
+    histo->Draw ( "AXIS" );
+}
+
+void setLegendStyle ( TLegend *leg, const int ncols, const int nDetParts )
+{
+    leg->SetTextFont ( 42 );
+//    leg->SetTextSize ( 0.04 );
+    leg->SetFillStyle ( 1001 );
+    leg->SetBorderSize ( 1 );
+//    leg->SetLineColor ( 1 );
+    leg->SetFillColor ( 0 );
+    leg->SetNColumns ( ncols );
+    if(ncols==1) {
+        leg->SetX1(leg->GetX1() + 0.5*(leg->GetX2() - leg->GetX1() ));
+    }
+    leg->SetY1(leg->GetY2() - nDetParts/ncols*(0.05));
+}
 
 // // Public CMS style (Detector Performance)
 
@@ -743,5 +944,58 @@ void setTDRStyle() {
     // tdrStyle->SetHistMinimumZero(kTRUE);
 
     tdrStyle->cd();
+
+}
+
+
+/**
+ * Extract from the input strings the list of granularity ids to be plotted and its parameters
+ * @method decodeGranularityList
+ * @param  granulId_             String with comma separated list of granularity ids
+ * @param  granulId              Reference to vector that will be filled by the granularity ids
+ * @param  granulParameters_     String with comma separated list of parameters
+ * @param  granulNames           Reference to vector that will be filled by the names of each granularity
+ * @param  granulColours         Reference to vector that will be filled by the colour of each granularity
+ * @param  granulStyles          Reference to vector that will be filled by the style of each granularity
+ * @return                       Number of granularities in the list [granulId]
+ */
+int decodeGranularityList( TString granulId_, std::vector<int>& granulId, 
+    TString granulParameters_, std::vector<std::string>& granulNames, std::vector<int>& granulColours, std::vector<int>& granulStyles ) {
+
+    TObjArray* granulId_list = granulId_.ReplaceAll(" ","").Tokenize(",");
+    for(int iG = 0; iG < granulId_list->GetEntries(); iG++) {
+        granulId.push_back( ((TObjString*)granulId_list->At(iG))->String().Atoi() );
+    }
+
+
+    TObjArray* granulParameters_list = granulParameters_.ReplaceAll(", ",",").Tokenize(",");
+    for(int iG = 0; iG < granulId_list->GetEntries(); iG++) {
+        TObjArray* granulParameters = ((TObjString*)granulParameters_list->At(iG))->String().Tokenize("|");
+        int nPars = granulParameters->GetEntries();
+        if(nPars>0) {
+            granulNames.push_back( ((TObjString*)granulParameters->At(0))->String().Data() ); 
+        }
+        else {
+            granulNames.push_back("");
+            printf("ATTENTION! No name found for granularity with index: %d\n", iG);
+        }
+        if(nPars>1) {
+            granulColours.push_back( ((TObjString*)granulParameters->At(1))->String().Atoi() );
+        }
+        else {
+            granulColours.push_back(-1);
+            printf("ATTENTION! No colour found for granularity with index: %d\n", iG);
+        }
+        if(nPars>2) {
+            granulStyles.push_back( ((TObjString*)granulParameters->At(2))->String().Atoi() );
+        }
+        else {
+            granulStyles.push_back(-1);
+            printf("ATTENTION! No style found for granularity with index: %d\n", iG);
+        }
+    }
+
+
+    return granulId.size();
 
 }
