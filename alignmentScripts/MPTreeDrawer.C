@@ -37,7 +37,7 @@
 
 TStyle *tdrStyle;
 int markerColors[2]= {1,2};
-int markerStyles[12]= {20,24,21,25,22,26,23,32};
+int markerStyles[8]= {20,24,21,25,22,26,23,32};
 int lineStyles[3]= {1,7,3};
 int lineColors[8]= {13,kPink-9,kAzure+7,kSpring-6,kOrange+1,kPink-1,kAzure+10,kSpring+9};
 int fillStyles[2]= {1001,3008};
@@ -115,6 +115,14 @@ std::vector<GRANUL> allGranularities;       // List of granularities present in 
 // ROOT file that contains all information about tracker geometry layout
 TString geometryFileName = "/afs/cern.ch/user/n/nbartosi/cms/cms_usercode/alignmentScripts/TrackerTree.root";
 TTree* geomTree;
+struct geomStruct
+{
+    unsigned short int subdet;
+    float r;
+    float z;
+    float phi;
+};
+std::map<unsigned int, geomStruct> GEOMETRY;     // Maps detid to its position in the ideal geometry
 
 TCanvas* canvas;        // Canvas to which the result will be drawn
 
@@ -125,7 +133,7 @@ bool log_ = false;
 //////////////////////////
 
 void setGraphStyle ( TGraph *graph, int id, int file );
-void drawEmptyHisto ( float Xmin=0, float Xmax=20, TString xTitle="", float Ymin=0, float Ymax=1, TString yTitle="", TString name="empty" );
+TH1* drawEmptyHisto ( float Xmin=0, float Xmax=20, TString xTitle="", float Ymin=0, float Ymax=1, TString yTitle="", TString name="empty" );
 void setLegendStyle ( TLegend *leg, const int ncols = 1, const int nDetParts = 6);
 void setTDRStyle();
 // void tdrGrid(bool gridOn);
@@ -188,6 +196,7 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
     }
 
     if(stripReadoutMode == "deco") stripReadoutMode = "deconvolution";
+    if(stripReadoutMode != "") stripReadoutMode = "_"+stripReadoutMode;
 
     // Opening files for loggins
     logFile = fopen( "log.txt","w" );          // Debugging logs
@@ -204,10 +213,14 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
     int nIOVs = nIOVsInTrees(TreeBaseDir, iov1stRuns, iov1stRuns_);
     printf("Found %d IOVs with name: %s ...\n",nIOVs, TreeBaseDir.Data());
 
+    // Cleaning the calibration values
+    calibOutValues.clear();
+    allGranularities.clear();
+
 
     // Getting the calibration result values for each IOV
     for(int iovId = 0; iovId < nIOVs; iovId++) {
-        if(maxIOVs>=0 && iovId > maxIOVs) break;
+        if(maxIOVs>=0 && iovId >= maxIOVs) break;
 
         printf("Checking IOV: %d / %d\n", iovId+1,nIOVs);
         TString TreeBaseNameOut = TreeBaseDir;
@@ -228,37 +241,6 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
 
 
     analyzeGranularity();
-    // // Checking all granularities in the calibration result
-    // printf("\nAll granularities (%d) in the file:\n", (int)allGranularities.size());
-    // int nSameR = 0;
-    // int nSameZ = 0;
-    // int nSamePhi = 0;
-    // // Additional formats for different layers, rings and phi sections
-    // std::vector<std::string> addStr;
-    // addStr.push_back("");
-    // addStr.push_back(" ");
-    // int iR = 0, iZ = 0, iPhi = 0;       // Index of format string added before R,Z Z, Phi range
-    // for(int iG = 0; iG < (int)allGranularities.size(); iG++){
-    //     GRANUL gr = allGranularities.at(iG);
-
-    //     // Deciding on format to add before layer, ring, phi section
-    //     if(iG>0) {
-    //         if(gr.subDetId != allGranularities.at(iG-1).subDetId) { nSameR=0; nSameZ=0; nSamePhi=0; printf("\n");}
-    //         if(valsAreClose(gr.r.v1, allGranularities.at(iG-1).r.v1) ) nSameR++; 
-    //         else if(nSameR>0) {nSameR=0; nSameZ=0; nSamePhi=0; iR = 1 - iR;}
-    //         if(valsAreClose(gr.z.v1, allGranularities.at(iG-1).z.v1) ) nSameZ++; 
-    //         else if(nSameZ>0) {nSameR=0; nSameZ=0; nSamePhi=0; iZ = 1 - iZ;};
-    //         if(valsAreClose(gr.phi.v1, allGranularities.at(iG-1).phi.v1) ) nSamePhi++;
-    //         else if(nSamePhi>0) {nSameR=0; nSameZ=0; nSamePhi=0; iPhi = 1 - iPhi;};
-    //     }
-    //     printf("  %d.\tdetId: %d\t%sR: [%.2f|%.2f]   \t%sZ: [%.2f|%.2f]   \t%sPhi: [%.2f|%.2f]\n", iG, gr.subDetId, addStr.at(iR).c_str(), 
-    //         gr.r.v1, gr.r.v2, addStr.at(iZ).c_str(),
-    //         gr.z.v1, gr.z.v2, addStr.at(iZ).c_str(), 
-    //         gr.phi.v1, gr.phi.v2);
-    // }
-    // printf("\nPlot calibration values for the groups specifying its ids and names:\n");
-    // printf("  plotCalibration(\"0,1,2\",\"Ring 1|0|1, Ring 2|1|1, Ring 3|2|1\",\"test1\")  [EXAMPLE (No title, No saving)]\n");
-
 
 
     fclose ( logFile );
@@ -333,7 +315,19 @@ GRANVAL distValuesFromTrees(TString treeName)
     distValues.val_e = std::vector<double>();
     distValues.detPos = std::vector<GRANUL>();
 
-    // Parameters to be read from the tree
+    // Parameters to be read from the geometry tree
+    geomTree->SetBranchStatus("*",0);
+    geomTree->SetBranchStatus("RawId",1);
+    geomTree->SetBranchStatus("SubdetId",1);
+    geomTree->SetBranchStatus("PosR",1);
+    geomTree->SetBranchStatus("PosZ",1);
+    geomTree->SetBranchStatus("PosPhi",1);
+    Int_t geom_RawId;
+    Float_t geom_PosR;
+    Float_t geom_PosZ;
+    Float_t geom_PosPhi;
+
+    // Parameters to be read from the tree of calibrations
     UInt_t detId;
     Float_t value;
     Float_t error;
@@ -481,8 +475,16 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
 
     // Looping through the IOVs of the output calibration values
     for(int iovId = 0; iovId < (int)calibOutValues.size(); iovId++) {
-        // Looping through the values in each IOV to determine number of subDetIds
+        // Getting the granularity and values for the current IOV
         GRANVAL& distValues = calibOutValues.at(iovId);
+
+        float lumiWidth = iovLumiWidth(iov1stRuns_.at(0), iov1stRuns_.at(iovId), iov1stRuns_.at(iovId+1));
+        if(lumiWidth < 0.f) continue;       // Skipping IOV if its luminosity couldn't be determined
+
+        float lumiPoint = totLumi + 0.5*lumiWidth;
+        totLumi += lumiWidth;
+        
+        // Looping through the values in each IOV to determine number of subDetIds
         for(int valId = 0; valId < (int)distValues.val.size(); valId++) {
             GRANUL& theModules = distValues.detPos.at(valId);
             // Getting the id of the granularity in list of all granularities
@@ -501,16 +503,11 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
                 break;
             }
 
-            float lumiWidth = iovLumiWidth(iov1stRuns_.at(0), iov1stRuns_.at(iovId), iov1stRuns_.at(iovId+1));
-            if(lumiWidth < 0.f) continue;       // Skipping IOV if its luminosity couldn't be determined
-
-            float lumiPoint = totLumi + 0.5*lumiWidth;
-            totLumi += lumiWidth;
 
             // Setting the values to the additional point in the TGraph
             int nPoints = graph->GetN();
-            float val = scale*distValues.val.at(iovId);
-            float val_e = scale*distValues.val_e.at(iovId);
+            float val = scale*distValues.val.at(theGranulId);
+            float val_e = scale*distValues.val_e.at(theGranulId);
             graph->SetPoint(nPoints, lumiPoint, val);
             graph->SetPointError(nPoints, 0.f, val_e);
             // printf("      Set point %d to values: x: %.3f y: %.3f\n", nPoints, lumiPoint, val);
@@ -533,7 +530,7 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
     }
 
     // Drawing the axis histogram
-    drawEmptyHisto ( 0.0,totLumi,"2012 Integrated Luminosity [fb^{-1}]",minY_,maxY_,yTitle.c_str(),"empty1" );
+    TH1* axisHisto = drawEmptyHisto ( 0.0,totLumi,"2012 Integrated Luminosity [fb^{-1}]",minY_,maxY_,yTitle.c_str(),"empty1" );
 
     // Creating a legend pane
     TLegend *leg = new TLegend ( 0.7, 0.77, 0.98, 0.95, NULL, "brNDC" );
@@ -577,7 +574,11 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
     gROOT->ProcessLine(".mkdir -p "+outputPath);
     // Saving the canvas to file
     canvas->Print(outputPath+"/"+fileName+".eps");
+
+    // Cleaning
     canvas->Clear();
+    if(axisHisto) delete axisHisto;
+
 
     return 0;
 }
@@ -743,7 +744,7 @@ void setGraphStyle ( TGraph *graph, int colourId, int styleId )
     return;
 }
 
-void drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float Ymax, TString yTitle, TString name )
+TH1* drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float Ymax, TString yTitle, TString name )
 {
     printf ( "Setting empty histo: X: %.2f-%.2f\tY: %.2f-%.2f\n",Xmin,Xmax,Ymin,Ymax );
     printf("Total luminosity to be plotted: %.3f\n",Xmax);
@@ -765,6 +766,8 @@ void drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float 
     histo->SetMinimum ( Ymin );
     histo->SetMaximum ( Ymax );
     histo->Draw ( "AXIS" );
+
+    return histo;
 }
 
 void setLegendStyle ( TLegend *leg, const int ncols, const int nDetParts )

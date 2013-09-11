@@ -1,8 +1,10 @@
 *.pyc
 __init__.py
 *~
+*.cxx
 *.so
 *.d
 *.kdev4
 dict.*
 log.txt
+treeFile.root

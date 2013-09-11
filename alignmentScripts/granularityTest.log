@@ -1,0 +1,307 @@
+%MSG-i Geometry:  (NoModuleName) CSCGeometryESModule()  09-Sep-2013 10:17:08 CEST pre-events
+Label '' looking for alignment labels ''.
+%MSG
+%MSG-i Geometry:  (NoModuleName) CSCGeometryESModule()  09-Sep-2013 10:17:08 CEST pre-events
+Label 'idealForDigi' IGNORING alignment labels 'fakeForIdeal'.
+%MSG
+%MSG-i Geometry:  (NoModuleName) DTGeometryESModule() 09-Sep-2013 10:17:09 CEST  pre-events
+Label '' looking for alignment labels ''.
+%MSG
+%MSG-i Geometry:  (NoModuleName) DTGeometryESModule() 09-Sep-2013 10:17:09 CEST  pre-events
+Label 'idealForDigi' IGNORING alignment labels 'fakeForIdeal'.
+%MSG
+%MSG-i Alignments:  (NoModuleName) FakeAlignmentProducer()  09-Sep-2013 10:17:09 CEST pre-events
+Providing data with label 'fakeForIdeal'.
+%MSG
+%MSG-i SiPixelQualityESProducer::SiPixelQualityESProducer:  (NoModuleName)  09-Sep-2013 10:17:09 CEST pre-events
+
+%MSG
+%MSG-i SiStripBackPlaneCorrectionDepESProducer:  (NoModuleName)  09-Sep-2013 10:17:09 CEST pre-events
+ctor
+%MSG
+%MSG-i SiStripLorentzAngleDepESProducer:  (NoModuleName)  09-Sep-2013 10:17:09 CEST pre-events
+ctor
+%MSG
+%MSG-i SiStripQualityESProducer:  (NoModuleName) 09-Sep-2013 10:17:09 CEST  pre-events
+ctor
+%MSG
+%MSG-i SiStripDetInfoFileReader:  (NoModuleName) 09-Sep-2013 10:17:09 CEST  pre-events
+filePath /afs/cern.ch/cms/CAF/CMSALCA/ALCA_TRACKERALIGN/MP/MPproduction/CMSSW_5_3_7_patch1_nbartosi/src/CalibTracker/SiStripCommon/data/SiStripDetInfo.dat
+%MSG
+%MSG-i SiStripDetInfoFileReader::SiStripDetInfoFileReader - END of file reached:  (NoModuleName) 09-Sep-2013 10:17:09 CEST pre-events
+
+%MSG
+%MSG-i Geometry:  (NoModuleName) TrackerDigiGeometryESModule()  09-Sep-2013 10:17:10 CEST pre-events
+Label '' looking for alignment labels ''.
+%MSG
+%MSG-i Geometry:  (NoModuleName) TrackerDigiGeometryESModule()  09-Sep-2013 10:17:10 CEST pre-events
+Label 'idealForDigi' IGNORING alignment labels 'fakeForIdeal'.
+%MSG
+%MSG-i HCAL:  (NoModuleName) 09-Sep-2013 10:17:10 CEST pre-events
+HcalHardcodeCalibrations::HcalHardcodeCalibrations->...
+%MSG
+%MSG-i Alignment:  (NoModuleName) AlignmentProducer::AlignmentProducer()  09-Sep-2013 10:17:18 CEST pre-events
+
+%MSG
+%MSG-i Alignment:  (NoModuleName) MillePedeAlignmentAlgorithm()  09-Sep-2013 10:17:18 CEST pre-events
+Start in mode 'mille' with output directory ''.
+%MSG
+09-Sep-2013 10:17:18 CEST  Initiating request to open file root://eoscms//eos/cms/store/data/Run2012C/ZeroBias1/ALCARECO/TkAlMinBias-v2/000/201/475/E28C90EF-7EEF-E111-BD7D-003048F024F6.root?svcClass=default
+%MSG-i XrdFileInfo:  file_open 09-Sep-2013 10:17:18 CEST pre-events
+Opened root://eoscms//eos/cms/store/data/Run2012C/ZeroBias1/ALCARECO/TkAlMinBias-v2/000/201/475/E28C90EF-7EEF-E111-BD7D-003048F024F6.root?svcClass=default
+%MSG
+%MSG-i XrdFileInfo:  file_open 09-Sep-2013 10:17:18 CEST pre-events
+Connection URL root://lxfsrk50c01.cern.ch:1095//eos/cms/store/data/Run2012C/ZeroBias1/ALCARECO/TkAlMinBias-v2/000/201/475/E28C90EF-7EEF-E111-BD7D-003048F024F6.root?svcClass=default
+%MSG
+09-Sep-2013 10:17:18 CEST  Successfully opened file root://eoscms//eos/cms/store/data/Run2012C/ZeroBias1/ALCARECO/TkAlMinBias-v2/000/201/475/E28C90EF-7EEF-E111-BD7D-003048F024F6.root?svcClass=default
+%MSG-i Root_Information:  AfterFile TClass::TClass() 09-Sep-2013 10:17:19 CEST  pre-events
+no dictionary for class pair<edm::IndexIntoFile::IndexRunKey,Long64_t> is available
+%MSG
+%MSG-i Root_Information:  AfterFile TClass::TClass() 09-Sep-2013 10:17:19 CEST  pre-events
+no dictionary for class pair<edm::IndexIntoFile::IndexRunLumiKey,Long64_t> is available
+%MSG
+%MSG-i Root_Information:  AfterFile TClass::TClass() 09-Sep-2013 10:17:19 CEST  pre-events
+no dictionary for class pair<edm::BranchKey,edm::ConstBranchDescription> is available
+%MSG
+%MSG-i path:  AfterSourceConstruction 09-Sep-2013 10:17:19 CEST pre-events
+The following module labels are not assigned to any path:
+'HighPuritySelector'
+
+%MSG
+%MSG-i EventSetupDependency:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+The EventSetup record SiStripGainRcd depends on at least one Record 
+ (SiStripApvGain3Rcd) which is not present in the job.
+ This may lead to an exception begin thrown during event processing.
+ If no exception occurs during the job than it is usually safe to ignore this message.
+%MSG
+%MSG-i EventSetupDependency:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+The EventSetup record TkStripCPERecord depends on at least one Record 
+ (IdealMagneticFieldRecord) which is not present in the job.
+ This may lead to an exception begin thrown during event processing.
+ If no exception occurs during the job than it is usually safe to ignore this message.
+%MSG
+%MSG-i EventSetupDependency:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+The EventSetup record SiStripQualityRcd depends on at least one Record 
+ (SiStripDCSStatusRcd) which is not present in the job.
+ This may lead to an exception begin thrown during event processing.
+ If no exception occurs during the job than it is usually safe to ignore this message.
+%MSG
+%MSG-i EventSetupDependency:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+The EventSetup record HcalGeometryRecord depends on at least one Record 
+ (HcalAlignmentRcd, HcalAlignmentErrorRcd) which is not present in the job.
+ This may lead to an exception begin thrown during event processing.
+ If no exception occurs during the job than it is usually safe to ignore this message.
+%MSG
+%MSG-i EventSetupDependency:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+The EventSetup record EcalBarrelGeometryRecord depends on at least one Record 
+ (EBAlignmentErrorRcd) which is not present in the job.
+ This may lead to an exception begin thrown during event processing.
+ If no exception occurs during the job than it is usually safe to ignore this message.
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Getting data for record "DTMtimeRcd" to be consumed by run: 201475 lumi: 0 event: 0, timestamp: 5779508400967438865; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Processing record "DTMtimeRcd" and label "" for run: 201475 lumi: 0 event: 0, timestamp: 5779508400967438865; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "DTMtimeRcd" and label "": (198230, 4294967295) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Getting data for record "DTTtrigRcd" to be consumed by run: 201475 lumi: 0 event: 0, timestamp: 5779508400967438865; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "DTTtrigRcd" and label "cosmics": (164948, 4294967295) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "RPCEMapRcd" and label "": (156770, 4294967295) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "CSCDDUMapRcd" and label "": (1, 4294967295) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i HCAL:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+HcalHardcodeCalibrations::setIntervalFor-> key: HcalGainWidthsRcd time: run: 201475 lumi: 0 event: 0/5779508400967438865
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "HcalLutMetadataRcd" and label "": (158573, 4294967295) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "GBRWrapperRcd" and label "wgbrph_EECorrection": (1, 4294967295) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Getting data for record "L1GtPsbSetupRcd" to be consumed by run: 201475 lumi: 0 event: 0, timestamp: 5779508400967438865; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "L1RPCBxOrConfigRcd" and label "": (201417, 201480) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Validity coming from IOV sequence for record "L1MuCSCTFConfigurationRcd" and label "": (201417, 201480) for time (type: runnumber) 201475; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::beginOfJob()  09-Sep-2013 10:17:19 CEST BeforeEvents
+
+%MSG
+%MSG-i DDLParser:  AfterSource 09-Sep-2013 10:17:19 CEST BeforeEvents
+Start Parsing.  Validation is set off for the time being.
+%MSG
+%MSG-i EcalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDEcalEndcapAlgo info: Creating an instance
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Parent forwardshield:VcalFibreBundleHalfSectorL with 28 children with prefix VcalFibreBundleL, material hcalforwardmaterial:Quartz with 4 bundles along phi; width of mother 449.5 along Z, 10 along phi and with 13 different bundle types
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Child[0] Area 551 R at Start 1231 R at End 1350
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Child[1] Area 652 R at Start 1068.5 R at End 1350
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Child[3] Area 324 R at Start 757 R at End 1308
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Child[7] Area 88 R at Start 373 R at End 1224
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Position[1]  with Type 11
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle debug: Position[17]  with Type 6
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle test: forwardshield:VcalFibreBundleL3 number 6 positioned in forwardshield:VcalFibreBundleHalfSectorL at (0,0,0) with forwardshield:R0-3 t=180deg p=-45deg a=3.75deg
+%MSG
+%MSG-i HCalGeom:  AfterSource 09-Sep-2013 10:17:20 CEST BeforeEvents
+DDHCalFibreBundle test: Creating a new solid VcalFibreBundleR1 a cons with dZ 449.5 rStart 1061.51:1075.49 rEnd 1349.64:1360.67 Phi -1.25:1.25
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::beginOfJob()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Creating AlignmentParameterBuilder
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentParameterBuilder::addSelections()  09-Sep-2013 10:17:22 CEST BeforeEvents
+ Added 1 set(s) of alignables with 6 alignables in total, of which 6 are higher level (using RigiBodyAlignmentParameters).
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::beginOfJob()  09-Sep-2013 10:17:22 CEST BeforeEvents
+got 6 alignables
+%MSG
+%MSG-i Alignment:  AfterSource  AlignmentCorrelationsStore::AlignmentCorrelationsStore ()  09-Sep-2013 10:17:22 CEST BeforeEvents
+
+Created.
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentParameterStore()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Created with 6 alignables.
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::beginOfJob()  09-Sep-2013 10:17:22 CEST BeforeEvents
+NOT applying misalignment scenario!
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::simpleMisalignment_()  09-Sep-2013 10:17:22 CEST BeforeEvents
+No simple misalignment added!
+%MSG
+%MSG-i Alignment:  AfterSource AlignableNavigator() 09-Sep-2013 10:17:22 CEST  BeforeEvents
+Created with map of size 19876.
+%MSG
+%MSG-i Alignment:  AfterSource MillePedeAlignmentAlgorithm::initialize()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Using plugin 'PedeLabeler' to generate labels.
+%MSG
+%MSG-i Alignment:  AfterSource TrajectoryFactoryBase()  09-Sep-2013 10:17:22 CEST BeforeEvents
+TrajectoryFactory 'BzeroReferenceTrajectoryFactory' with following settings:
+material effects: BrokenLinesCoarse
+propagation: alongMomentum
+use hits without det: yes
+use invalid hits: yes
+use projected hits: yes
+use beamspot: no
+%MSG
+%MSG-i Alignment:  AfterSource BzeroReferenceTrajectoryFactory()  09-Sep-2013 10:17:22 CEST BeforeEvents
+mass: 0.105658
+momentum: 10
+%MSG
+%MSG-i Alignment:  AfterSource TkModuleGroupSelector::createModuleGroups()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Total number of selected modules in group 0: 162
+%MSG
+%MSG-i Alignment:  AfterSource TkModuleGroupSelector::createModuleGroups()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Total number of selected modules in group 1: 162
+%MSG
+%MSG-i Alignment:  AfterSource SiStripLorentzAngleCalibration()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Created with name SiStripLorentzAngleCalibration for readout mode 'deconvolution',
+2 parameters to be determined.
+saveToDB = 0
+ outFileName = treeFile.root
+ N(merge files) = 0
+ number of IOVs = 1
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::startingNewLoop()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Starting loop number 0
+%MSG
+%MSG-i Alignment:  AfterSource AlignmentProducer::startingNewLoop()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Now physically apply alignments to  geometry...
+%MSG
+%MSG-i Alignment:  AfterSource GeometryAligner::applyAlignments()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Starting to apply alignments.
+%MSG
+%MSG-i Alignment:  AfterSource GeometryAligner::applyAlignments()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Finished to apply 19876 alignments with 0 non-zero APE.
+%MSG
+%MSG-i Alignment:  AfterSource GeometryAligner::attachSurfaceDeformations()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Starting to attach surface deformations.
+%MSG
+%MSG-i Alignment:  AfterSource GeometryAligner::attachSurfaceDeformations()  09-Sep-2013 10:17:22 CEST BeforeEvents
+Finished to attach 0 surface deformations.
+%MSG
+Begin processing the 1st record. Run 201475, Event 2270581, LumiSection 7 at 09-Sep-2013 10:17:22.507 CEST
+%MSG-e Alignment:  PreEventProcessing AlignmentProducer::duringLoop()  09-Sep-2013 10:17:22 CEST PostProcessEvent
+No track collection found: skipping event
+%MSG
+%MSG-i DDCompactViewImpl:  PreEventProcessing 09-Sep-2013 10:17:22 CEST  PostProcessEvent
+DDD transient representation has been destructed.
+%MSG
+%MSG-i CondDBESSource:  PreEventProcessing 09-Sep-2013 10:17:22 CEST  PostProcessEvent
+Getting data for record "DTKeyedConfigContainerRcd" to be consumed by run: 201475 lumi: 7 event: 4294967295, timestamp: 5779508504045953596; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  PreEventProcessing 09-Sep-2013 10:17:22 CEST  PostProcessEvent
+Processing record "DTKeyedConfigContainerRcd" and label "" for run: 201475 lumi: 7 event: 4294967295, timestamp: 5779508504045953596; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  PostEndLumi 09-Sep-2013 10:17:22 CEST PostEndLumi
+Getting data for record "DTKeyedConfigContainerRcd" to be consumed by run: 201475 lumi: 4294967295 event: 4294967295, timestamp: 5779509259960990240; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i CondDBESSource:  PostEndLumi 09-Sep-2013 10:17:22 CEST PostEndLumi
+Processing record "DTKeyedConfigContainerRcd" and label "" for run: 201475 lumi: 4294967295 event: 4294967295, timestamp: 5779509259960990240; from CondDBESSource::setIntervalFor
+%MSG
+%MSG-i Alignment:  PostEndRun AlignmentProducer::endRun()  09-Sep-2013 10:17:22 CEST PostEndRun
+No Tk LAS beams to forward to algorithm.
+%MSG
+%MSG-i XrdFileInfo:  file_close 09-Sep-2013 10:17:22 CEST PostEndRun
+Closed root://eoscms//eos/cms/store/data/Run2012C/ZeroBias1/ALCARECO/TkAlMinBias-v2/000/201/475/E28C90EF-7EEF-E111-BD7D-003048F024F6.root?svcClass=default
+%MSG
+09-Sep-2013 10:17:22 CEST  Closed file root://eoscms//eos/cms/store/data/Run2012C/ZeroBias1/ALCARECO/TkAlMinBias-v2/000/201/475/E28C90EF-7EEF-E111-BD7D-003048F024F6.root?svcClass=default
+%MSG-i Alignment:  AfterFile AlignmentProducer::endOfLoop()  09-Sep-2013 10:17:22 CEST PostEndRun
+Ending loop 0, terminating algorithm.
+%MSG
+%MSG-i AlignmentIORootBase:  AfterFile 09-Sep-2013 10:17:22 CEST PostEndRun
+File: treeFile.root
+%MSG
+%MSG-e Alignment:  AfterFile MillePedeAlignmentAlgorithm::doIO()  09-Sep-2013 10:17:22 CEST PostEndRun
+Problem -1 in writeAlignableOriginalPositions
+%MSG
+%MSG-i AlignmentIORootBase:  AfterFile 09-Sep-2013 10:17:22 CEST PostEndRun
+File: treeFile.root
+%MSG
+%MSG-e Alignment:  AfterFile MillePedeAlignmentAlgorithm::doIO()  09-Sep-2013 10:17:22 CEST PostEndRun
+Problem -1 writing MillePedeVariables
+%MSG
+%MSG-i AlignmentIORootBase:  AfterFile 09-Sep-2013 10:17:22 CEST PostEndRun
+File: treeFile.root
+%MSG
+%MSG-e Alignment:  AfterFile MillePedeAlignmentAlgorithm::doIO()  09-Sep-2013 10:17:22 CEST PostEndRun
+Problem -1 in writeOrigRigidBodyAlignmentParameters, 0
+%MSG
+%MSG-i Alignment:  AfterFile AlignmentProducer::endOfJob()  09-Sep-2013 10:17:22 CEST PostEndRun
+
+%MSG
+%MSG-i Alignment:  AfterFile SiStripLorentzAngleCalibration::endOfJob()  09-Sep-2013 10:17:22 CEST PostEndRun
+Parameter results for readout mode 'deconvolution'
+0: 0 +- 0
+1: 0 +- 0
+
+%MSG
+%MSG-e Alignment:  AfterFile SiStripLorentzAngleCalibration::endOfJob()  09-Sep-2013 10:17:22 CEST PostEndRun
+Input Lorentz angle map is empty ('deconvolution' mode), skip writing output!
+%MSG
