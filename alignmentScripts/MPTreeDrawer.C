@@ -47,33 +47,24 @@ TFile *inputFile;       // ROOT file (treeFile_merge.root) with the calibration 
 
 std::vector<TString> DetName;
 
-int nPhiParts = 0;      // Number of parts with different calibration values in Phi
-int nZParts = 0;        // Number of parts with different calibration values in Z (rings)
-int nLayers = 0;        // Number of parts with different calibration values in R (layers)
-
-int DetIndex = -1;	// 0-BPIX 1-FPIX 2-TIB 3-TOB
-int LayerId = 1;	// [BPIX] Layers: 1-3 Rings: 1-8 [FPIX] Side: 0-1 [TIB] Layers: 1-4 Modules: 1-6 [TOB] Layers: 1-6 Modules: 1-4
-int ZId = 0; // Meaning of VLayer: 0-Layer; 1-Ring (Module);
-int PhiId = 0;  // Strip readout mode: 0-peak 1-deco
 int nPointsToSkip=1;	// Number of points that should be skipped from the end
 int maxIOVs = -1;       // Maximum number of IOVs to analyze
 //float lumiScale=0.826;
 float lumiScale=1.0;
 bool drawLegend=true;
-float minY=0.f;
-float maxY=0.f;
+float minY=-1.f;
+float maxY=1.f;
 bool autoScaleY = true;
 bool drawInput = true;      // Whether to draw lines for input LA
 FILE *logFile;
 FILE *runsFile;
 
 bool canvasSquare=false;
+float canvasW = 1000;
+float canvasH = 700;
 
-//float iovWidth = 0.33;	  // Width of one IOV in fb-1 for labels of X axis
-float fixedIOVwidth[4] = {0.35, 0.35, 1.27, 1.27};      // Width of one IOV in fb-1 for each DetId
-bool iovWidthIsFixed = false;                           // Whether to compute real width of which IOV based on its luminosity
-float minY_det[4] = {0.35,-0.095,0.06,0.065};           // BPIX, FPIX, TIB, TOB
-float maxY_det[4] = {0.46,-0.075,0.082,0.11};           // BPIX, FPIX, TIB, TOB
+
+float iovWidth = -1.f;	  // Width of one IOV in fb-1 for labels of X axis
 
 int firstRun = 190000;
 int lastRun = 209091;
@@ -114,7 +105,7 @@ std::vector<GRANUL> allGranularities;       // List of granularities present in 
 
 // ROOT file that contains all information about tracker geometry layout
 TString geometryFileName = "/afs/cern.ch/user/n/nbartosi/cms/cms_usercode/alignmentScripts/TrackerTree.root";
-TTree* geomTree;
+TString geometryTreeName = "TrackerTreeGenerator/TrackerTree/TrackerTree";
 struct geomStruct
 {
     unsigned short int subdet;
@@ -138,6 +129,7 @@ void setLegendStyle ( TLegend *leg, const int ncols = 1, const int nDetParts = 6
 void setTDRStyle();
 // void tdrGrid(bool gridOn);
 // void fixOverlay();
+void getCalibrationsOfType(TString calibrationType = "LorentzAngle", TString moduleType = "Pixel", TString stripReadoutMode = "");
 int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_);
 GRANVAL distValuesFromTrees(TString treeName);
 int plotCalibration( const TString granulId,
@@ -154,6 +146,7 @@ bool valsAreClose(float val1, float val2, float minD = 0.005);
 float iovLumiWidth(int run0, int run1, int run2);
 int decodeGranularityList( TString granulId_, std::vector<int>& granulId, 
     TString granulParameters_, std::vector<std::string>& granulNames, std::vector<int>& granulColours, std::vector<int>& granulStyles );
+int analyzeGeometry();
 
 
 //////////////////////////////
@@ -167,7 +160,7 @@ int decodeGranularityList( TString granulId_, std::vector<int>& granulId,
  * @param  moduleType   Pixel | Strip
  * @param  stripReadoutMode deco | peak
  */
-int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = "Pixel", TString stripReadoutMode = "")
+int MPTreeDrawer()
 {
     setTDRStyle();
 
@@ -179,34 +172,34 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
     DetName.push_back("TOB");       // 5
     DetName.push_back("TEC");       // 6
 
-    TFile* geomFile = new TFile(geometryFileName);
-    if(geomFile->IsZombie()) {
-        printf("ERROR! No geometry file found with name: %s\n", geometryFileName.Data());
-        printf("Rerun MPTreeDrawer(<fileName>) with correct path to the geometry file.\n");
-
-        return 1;
-    }
-
-    TString geometryTreeName = "TrackerTreeGenerator/TrackerTree/TrackerTree";
-    geomTree = (TTree*)geomFile->Get(geometryTreeName);
-    if(!geomTree) {
-        printf("ERROR! No geometry tree found with name: %s\n", geometryTreeName.Data());
-
-        return 1;
-    }
-
-    if(stripReadoutMode == "deco") stripReadoutMode = "deconvolution";
-    if(stripReadoutMode != "") stripReadoutMode = "_"+stripReadoutMode;
-
-    // Opening files for loggins
-    logFile = fopen( "log.txt","w" );          // Debugging logs
-    runsFile = fopen( "runs.txt","w" );        // Run ranges that are used (for calculation of the luminosity)
 
     // Opening the input ROOT file
     inputFile = new TFile( inputFileName );
+    if(inputFile->IsZombie()) {
+        printf("Couldn't open the input file: %s\n", inputFileName.Data());
+        printf("Set correct path of the input file to <inputFileName> variable and rerun MPTreeDrawer().\n");
+    }
+
+    // Analyzing the geometry file
+    int nModulesInGeometry = analyzeGeometry();
+    if(log_) printf("Added %d modules to the geometry used for the granularity detection.\n", nModulesInGeometry);
 
     // Creating a canvas
-    if(!canvas) canvas = new TCanvas("c1", calibrationType+" calibration", 1000, 800);
+    if(!canvas) canvas = new TCanvas("c1", "Calibration result", canvasW, canvasH);
+
+
+    return 0;
+}
+
+void getCalibrationsOfType(TString calibrationType, TString moduleType, TString stripReadoutMode)
+{
+    // Opening files for logging
+    logFile = fopen( "log.txt","w" );          // Debugging logs
+    runsFile = fopen( "runs.txt","w" );        // Run ranges that are used (for calculation of the luminosity)
+
+
+    if(stripReadoutMode == "deco") stripReadoutMode = "deconvolution";
+    if(stripReadoutMode != "") stripReadoutMode = "_"+stripReadoutMode;
 
     // The base of the input tree name
     TString TreeBaseDir("Si"+moduleType+calibrationType+"Calibration"+stripReadoutMode+"_result_");
@@ -217,17 +210,16 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
     calibOutValues.clear();
     allGranularities.clear();
 
-
     // Getting the calibration result values for each IOV
     for(int iovId = 0; iovId < nIOVs; iovId++) {
         if(maxIOVs>=0 && iovId >= maxIOVs) break;
 
-        printf("Checking IOV: %d / %d\n", iovId+1,nIOVs);
         TString TreeBaseNameOut = TreeBaseDir;
         TreeBaseNameOut += iov1stRuns.at(iovId);
+        printf("IOV %d/%d \tTree: %s \t", iovId+1,nIOVs,TreeBaseNameOut.Data());
         // Filling the Granularity with calibration output values/errors
-        printf("Checking entries from the tree: %s\n",TreeBaseNameOut.Data());
         GRANVAL distOutValues = distValuesFromTrees(TreeBaseNameOut);
+        printf("nValues: %d\n", (int)distOutValues.val.size());
 
         calibOutValues.push_back(distOutValues); // Adding it to the vector for the current IOV
 
@@ -235,19 +227,14 @@ int MPTreeDrawer(TString calibrationType = "LorentzAngle", TString moduleType = 
 
     // Getting the calibration input values
     TString TreeBaseNameIn = TreeBaseDir.ReplaceAll("_result_","_input");
-    printf("Checking entries from the tree: %s\n",TreeBaseNameIn.Data());
+    printf("Input Tree: %s \t",TreeBaseNameIn.Data());
     calibInValues_simple = distValuesFromTrees(TreeBaseNameIn);
-
-
+    printf("nValues: %d\n", (int)calibInValues_simple.val.size());
 
     analyzeGranularity();
 
-
     fclose ( logFile );
-
     fclose ( runsFile );
-
-    return 0;
 }
 
 
@@ -315,18 +302,6 @@ GRANVAL distValuesFromTrees(TString treeName)
     distValues.val_e = std::vector<double>();
     distValues.detPos = std::vector<GRANUL>();
 
-    // Parameters to be read from the geometry tree
-    geomTree->SetBranchStatus("*",0);
-    geomTree->SetBranchStatus("RawId",1);
-    geomTree->SetBranchStatus("SubdetId",1);
-    geomTree->SetBranchStatus("PosR",1);
-    geomTree->SetBranchStatus("PosZ",1);
-    geomTree->SetBranchStatus("PosPhi",1);
-    Int_t geom_RawId;
-    Float_t geom_PosR;
-    Float_t geom_PosZ;
-    Float_t geom_PosPhi;
-
     // Parameters to be read from the tree of calibrations
     UInt_t detId;
     Float_t value;
@@ -351,7 +326,7 @@ GRANVAL distValuesFromTrees(TString treeName)
     }
 
     Long64_t nEntries = tree->GetEntries();
-    printf ( "  Got Tree with name: %s \t with nEntries: %lld\n",treeName.Data(),nEntries ); 
+    if(log_) printf ( "  Got Tree with name: %s \t with nEntries: %lld\n",treeName.Data(),nEntries ); 
 
     tree->SetBranchAddress ( "detId",&detId );
     tree->SetBranchAddress ( "value",&value );
@@ -379,22 +354,15 @@ GRANVAL distValuesFromTrees(TString treeName)
             distValues.detPos.push_back(modules);
         } 
 
-        // Reading the position and subDetId of the module with current calibration value from the geometry Tree
-        TString cutString = "RawId == ";
-        cutString += detId;
-        geomTree->Draw("SubdetId", cutString);
-        int nSelEntries = geomTree->GetSelectedRows();
-        if(nSelEntries!=1) {
-            printf("ERROR! No entry with position information found for module with detId: %d\n", detId);
-            continue;
-        }
-        int subDetId = geomTree->GetV1()[0];
-        distValues.detPos.at(valIndex).subDetId = subDetId;
+        // Getting the geometry information for the current module
+        geomStruct geomInfo = GEOMETRY[detId];
 
-        geomTree->Draw("PosR:PosZ:PosPhi", cutString);
-        float posR = geomTree->GetV1()[0];
-        float posZ = geomTree->GetV2()[0];
-        float posPhi = geomTree->GetV3()[0];
+        int subDetId = geomInfo.subdet;
+        float posR = geomInfo.r;
+        float posZ = geomInfo.z;
+        float posPhi = geomInfo.phi;
+
+        distValues.detPos.at(valIndex).subDetId = subDetId;
         POINT2& R = distValues.detPos.at(valIndex).r;
         POINT2& Z = distValues.detPos.at(valIndex).z;
         POINT2& Phi = distValues.detPos.at(valIndex).phi;
@@ -409,7 +377,7 @@ GRANVAL distValuesFromTrees(TString treeName)
     }      // End of loop over entries
 
     int nDistVals = distValues.val.size();
-    printf("      Number of distinct values: %d\n", nDistVals);
+    if(log_) printf("      Number of distinct values: %d\n", nDistVals);
 
     if(log_) {
         for(int iVal = 0; iVal<nDistVals; iVal++) {
@@ -441,13 +409,14 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
     std::vector<std::string> granulNames(0);
     const int nCurves = decodeGranularityList(granulId_, granulId, granulParameters_, granulNames, granulColours, granulStyles);
 
-
-    printf("  Plotting results for %d granularities:\n", nCurves);
-    for(int iG = 0; iG < nCurves; iG++) {
-        printf("    %d. Id: %d\tName: %s\tColour: %d\tStyle: %d\n", 
-            iG, granulId.at(iG), granulNames.at(iG).c_str(), granulColours.at(iG), granulStyles.at(iG) );
+    if(log_) {
+        printf("  Plotting results for %d granularities:\n", nCurves);
+        for(int iG = 0; iG < nCurves; iG++) {
+            printf("    %d. Id: %d\tName: %s\tColour: %d\tStyle: %d\n", 
+                iG, granulId.at(iG), granulNames.at(iG).c_str(), granulColours.at(iG), granulStyles.at(iG) );
+        }
+        printf("\n");
     }
-    printf("\n");
 
     // Initializing vector of TGraphs
     std::vector<TGraphErrors*> graphsOut(nCurves);
@@ -462,12 +431,8 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
     float totLumi = 0.f;
 
     // Determining the range of the Y axis
-    float minY_ = minY_det[DetIndex];
-    float maxY_ = maxY_det[DetIndex];
-    if(minY!=0.f || maxY!=0.f) {
-        minY_ = minY;
-        maxY_ = maxY;
-    }
+    float minY_ = minY;
+    float maxY_ = maxY;
     if(autoScaleY) {
         minY_=999.9;
         maxY_=-999.9;
@@ -551,7 +516,7 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
 
     if (drawLegend) leg->Draw();
 
-    printf("Plotted %d curves out of %d output calibration curves.\n", nPlotted, nCurves);
+    if(log_) printf("Plotted %d curves out of %d output calibration curves.\n", nPlotted, nCurves);
 
 
     // // Drawing CMS Preliminary label
@@ -636,7 +601,7 @@ void analyzeGranularity()
             gr.phi.v1, gr.phi.v2);
     }
     printf("\nPlot calibration values for the groups specifying its ids and names:\n");
-    printf("  plotCalibration(\"0,1,2\",\"Ring 1|0|1, Ring 2|1|1, Ring 3|2|1\",\"test1\")  [EXAMPLE (No title, No saving)]\n");
+    printf("  plotCalibration(\"0,1,2\",\"Ring 1|0|1, Ring 2|1|1, Ring 3|2|1\",\"test1\")  [EXAMPLE (No title, No saving)]\n\n");
 
 }
 
@@ -746,9 +711,9 @@ void setGraphStyle ( TGraph *graph, int colourId, int styleId )
 
 TH1* drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float Ymax, TString yTitle, TString name )
 {
-    printf ( "Setting empty histo: X: %.2f-%.2f\tY: %.2f-%.2f\n",Xmin,Xmax,Ymin,Ymax );
-    printf("Total luminosity to be plotted: %.3f\n",Xmax);
-    printf("Luminosity scale used: %.2f\n",lumiScale);
+    if(log_) printf ( "Setting empty histo: X: %.2f-%.2f\tY: %.2f-%.2f\n",Xmin,Xmax,Ymin,Ymax );
+    if(log_) printf("Total luminosity to be plotted: %.3f\n",Xmax);
+    if(lumiScale>1.0) printf("Luminosity scale used: %.2f\n",lumiScale);
 
     Xmax*=1.02;	  // Increasing max lumi to have free space
     gStyle->SetOptStat ( 0 );
@@ -1000,5 +965,71 @@ int decodeGranularityList( TString granulId_, std::vector<int>& granulId,
 
 
     return granulId.size();
+
+}
+
+
+/**
+ * Fills the map GEOMETRY with appropriate values for each module in the geometry (subdet, r, z, phi)
+ * @method buildGeometry
+ * @return Number of entries added to the map
+ */
+int analyzeGeometry() {
+    int nModules = 0;
+
+    TFile* file = new TFile(geometryFileName);
+    if(file->IsZombie()) {
+        printf("ERROR! No geometry file found with name: %s\n", geometryFileName.Data());
+        printf("Set correct path to file with geometry to <geometryFileName> variable and rerun MPTreeDrawer().\n");
+
+        return 0;
+    }
+
+
+    TTree* tree = (TTree*)file->Get(geometryTreeName);
+    if(!tree) {
+        printf("ERROR! No geometry tree found with name: %s\n", geometryTreeName.Data());
+        printf("Set correct name of the geometry tree to <geometryTreeName> variable and rerun MPTreeDrawer().\n");
+
+        return 0;
+    }
+
+    // Parameters to be read from the geometry tree
+    UInt_t RawId;
+    UInt_t SubdetId;
+    Float_t PosR;
+    Float_t PosZ;
+    Float_t PosPhi;
+    // Activating corresponding branches and pinting them to variables
+    tree->SetBranchStatus("*", 0);
+    tree->SetBranchStatus("RawId", 1);
+    tree->SetBranchAddress("RawId", &RawId);
+    tree->SetBranchStatus("SubdetId", 1);
+    tree->SetBranchAddress("SubdetId", &SubdetId);
+    tree->SetBranchStatus("PosR", 1);
+    tree->SetBranchAddress("PosR", &PosR);
+    tree->SetBranchStatus("PosZ", 1);
+    tree->SetBranchAddress("PosZ", &PosZ);
+    tree->SetBranchStatus("PosPhi", 1);
+    tree->SetBranchAddress("PosPhi", &PosPhi);
+
+    int nEntries = tree->GetEntries();
+    if(log_) printf("Analyzing geometry file with %d entries:\n", nEntries);
+
+    for(int it = 0; it < nEntries; it++) {
+        tree->GetEntry(it);
+
+        geomStruct values;
+        values.subdet = SubdetId;
+        values.r = PosR;
+        values.z = PosZ;
+        values.phi = PosPhi;
+
+        GEOMETRY[RawId] = values;
+
+        nModules++;
+    }
+
+    return nModules;
 
 }
