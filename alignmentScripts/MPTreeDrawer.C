@@ -327,6 +327,7 @@ GRANVAL distValuesFromTrees(TString treeName)
 
     Long64_t nEntries = tree->GetEntries();
     if(log_) printf ( "  Got Tree with name: %s \t with nEntries: %lld\n",treeName.Data(),nEntries ); 
+    fprintf ( logFile, "  Checking tree: %s \t with nEntries: %lld\n",treeName.Data(),nEntries ); 
 
     tree->SetBranchAddress ( "detId",&detId );
     tree->SetBranchAddress ( "value",&value );
