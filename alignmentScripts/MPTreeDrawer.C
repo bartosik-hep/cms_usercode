@@ -481,7 +481,7 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
             if(theGranulIndex>=(int)granulId.size()) continue;
             if(log_) printf("  Found value with index: %d with granularity Ids: %d (all) %d (sel)\n", valId, theGranulId, theGranulIndex);
             if(theGranulIndex>=nCurves) continue;   // Skipping values that are not for granularity from the plotting list
-            if(theGranulId>=(int)distValues.val.size()) continue;    // Skipping if no value for this IOV found
+            // if(theGranulId>=(int)distValues.val.size()) continue;    // Skipping if no value for this IOV found
             if(log_) printf("   Adding value to the plotting graphs\n");
             
             // printf("  %d. det: %d\tR: [%.3f|%.3f]\tZ: [%.3f|%.3f]\tPhi: [%.3f|%.3f]\tVal: %.2f +- %.2f\n", 
@@ -493,8 +493,8 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
 
             // Setting the values to the additional point in the TGraph
             int nPoints = graph->GetN();
-            float val = scale*distValues.val.at(theGranulId);
-            float val_e = scale*distValues.val_e.at(theGranulId);
+            float val = scale*distValues.val.at(valId);
+            float val_e = scale*distValues.val_e.at(valId);
             graph->SetPoint(nPoints, lumiPoint, val);
             graph->SetPointError(nPoints, 0.f, val_e);
             // printf("      Set point %d to values: x: %.3f y: %.3f\n", nPoints, lumiPoint, val);
