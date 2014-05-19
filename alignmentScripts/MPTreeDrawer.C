@@ -38,7 +38,7 @@
 TStyle *tdrStyle;
 int markerColors[2]= {1,2};
 int markerStyles[12]= {20,21,22,23,33,34,24,25,26,32,27,28};
-int lineStyles[3]= {1,7,3};
+int lineStyles[12]= {1,1,1,1,1,1,7,7,7,7,7,7};
 int lineColors[8]= {13,kPink-9,kAzure+7,kSpring-6,kOrange+7,kViolet+1,kPink-1,kSpring+9};
 int fillStyles[2]= {1001,3008};
 float markerSize = 2;
@@ -53,7 +53,7 @@ std::vector<TString> DetName;
 
 int nPointsToSkip=1;	// Number of points that should be skipped from the end
 int maxIOVs = -1;       // Maximum number of IOVs to analyze
-bool printGranularities = false;
+bool printGranularities = true;
 float lumiScale=1.0;
 bool drawLegend=true;
 float legX = 0.7;
@@ -61,7 +61,7 @@ float legY = 0.77;
 float minY=-1.f;
 float maxY=1.f;
 bool autoScaleY = true;
-bool drawInput = true;      // Whether to draw lines for input LA
+bool drawInput = true;      // Whether to draw lines for input calibration values
 FILE *logFile;
 FILE *runsFile;
 
@@ -105,8 +105,7 @@ struct GRANVAL
 };
 
 std::vector<GRANVAL> calibOutValues;        // List of distinct output values for each granularity direction
-GRANVAL calibInValues;                      // List of values for each granularity from calibOutValues
-GRANVAL calibInValues_simple;               // List of only distinct input values
+GRANVAL calibInValues;                      // List of distinct input values
 std::vector<GRANUL> allGranularities;       // List of granularities present in the root file
 
 // ROOT file that contains all information about tracker geometry layout
@@ -129,15 +128,15 @@ bool log_ = false;
 // FUNCTIONS DEFINITION //
 //////////////////////////
 
-void setGraphStyle ( TGraph *graph, int id, int file );
+void setGraphStyle ( TGraph *graph, int id, int file , bool drawLine = false);
 TH1* drawEmptyHisto ( float Xmin=0, float Xmax=20, TString xTitle="", float Ymin=0, float Ymax=1, TString yTitle="", TString name="empty" );
 void setLegendStyle ( TLegend *leg, const int ncols = 1, const int nDetParts = 6);
 void setTDRStyle();
 // void tdrGrid(bool gridOn);
 // void fixOverlay();
-void getCalibrationsOfType(TString calibrationType = "LorentzAngle", TString moduleType = "Pixel", TString stripReadoutMode = "");
+void getCalibrationsOfType(TString calibrationType = "LorentzAngle", TString moduleType = "Pixel", TString stripReadoutMode = "", int valueDelta = 0);
 int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>& iovs_);
-GRANVAL distValuesFromTrees(TString treeName);
+GRANVAL distValuesFromTrees(TString treeName, int valueDelta = 0);
 int plotCalibration( const TString granulId,
     const TString granulParameters = "", 
     const float scale = 1.f, 
@@ -153,6 +152,9 @@ float iovLumiWidth(int run0, int run1, int run2);
 int decodeGranularityList( TString granulId_, std::vector<int>& granulId, 
     TString granulParameters_, std::vector<std::string>& granulNames, std::vector<int>& granulColours, std::vector<int>& granulStyles );
 int analyzeGeometry();
+int indexOfGranularity(GRANUL& granul, GRANVAL& values);
+bool granulsIntersect(GRANUL& granul1, GRANUL& granul2);
+bool pointsDoOverlap(POINT2 p1, POINT2 p2);
 
 
 //////////////////////////////
@@ -185,7 +187,7 @@ int MPTreeDrawer()
     return 0;
 }
 
-void getCalibrationsOfType(TString calibrationType, TString moduleType, TString stripReadoutMode)
+void getCalibrationsOfType(TString calibrationType, TString moduleType, TString stripReadoutMode, int valueDelta)
 {
     setTDRStyle();
 
@@ -225,7 +227,7 @@ void getCalibrationsOfType(TString calibrationType, TString moduleType, TString 
         TreeBaseNameOut += iov1stRuns.at(iovId);
         printf("IOV %d/%d \tTree: %s \t", iovId+1,nIOVs,TreeBaseNameOut.Data());
         // Filling the Granularity with calibration output values/errors
-        GRANVAL distOutValues = distValuesFromTrees(TreeBaseNameOut);
+        GRANVAL distOutValues = distValuesFromTrees(TreeBaseNameOut, valueDelta);
         printf("nValues: %d\n", (int)distOutValues.val.size());
 
         calibOutValues.push_back(distOutValues); // Adding it to the vector for the current IOV
@@ -235,8 +237,8 @@ void getCalibrationsOfType(TString calibrationType, TString moduleType, TString 
     // Getting the calibration input values
     TString TreeBaseNameIn = TreeBaseDir.ReplaceAll("_result_","_input");
     printf("Input Tree: %s \t",TreeBaseNameIn.Data());
-    calibInValues_simple = distValuesFromTrees(TreeBaseNameIn);
-    printf("nValues: %d\n", (int)calibInValues_simple.val.size());
+    calibInValues = distValuesFromTrees(TreeBaseNameIn, valueDelta);
+    printf("nValues: %d\n", (int)calibInValues.val.size());
 
     analyzeGranularity();
 
@@ -307,7 +309,7 @@ int nIOVsInTrees(TString treeBaseName, std::vector<int>& iovs, std::vector<int>&
  * @param  isOldFormat  Swith for the old format (parameter error was stored directly in the tree, instead of a struct)
  * @return  Number of distinct values found in the tree
  */
-GRANVAL distValuesFromTrees(TString treeName)
+GRANVAL distValuesFromTrees(TString treeName, int valueDelta)
 {
     GRANVAL distValues;
     // Setting the initial values
@@ -344,6 +346,12 @@ GRANVAL distValuesFromTrees(TString treeName)
     tree->SetBranchAddress ( "detId",&detId );
     tree->SetBranchAddress ( "value",&value );
     if(tree->GetBranch("error")) isOldFormat = true;
+    if(valueDelta==1 && isOldFormat) {
+        printf("\n######################################################################");
+        printf("\n####### This old format doesn't have Delta values stored. Stopping...");
+        printf("\n######################################################################\n");
+        return distValues;
+    }
     if(isOldFormat) tree->SetBranchAddress ( "error",&error ); else
     tree->SetBranchAddress ( "treeStruct",&treeStruct );
 
@@ -356,7 +364,8 @@ GRANVAL distValuesFromTrees(TString treeName)
         unsigned int valIndex = std::find(distValues.val.begin(), distValues.val.end(), value) - distValues.val.begin();
         bool isInVector = valIndex < distValues.val.size() && distValues.val.size() > 0;
         if(!isInVector) {
-            distValues.val.push_back(value);
+            if(valueDelta==0) distValues.val.push_back(value); else
+            if(valueDelta==1) distValues.val.push_back(treeStruct.delta);
             valIndex = distValues.val.size() - 1;
             distValues.val_e.push_back(error);
             GRANUL modules;
@@ -488,15 +497,35 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
                 // theGranulIndex, theModules.subDetId, theModules.r.v1, theModules.r.v2, theModules.z.v1, theModules.z.v2, theModules.phi.v1, theModules.phi.v2,
                 // distValues.val.at(valId), distValues.val_e.at(valId));
 
-            TGraphErrors* graph = graphsOut.at(theGranulIndex);
+            TGraphErrors* graphOut = graphsOut.at(theGranulIndex);
+            TGraphErrors* graphIn = graphsIn.at(theGranulIndex);
+
+            // Filling the input value of the graph for the current granularity
+            if(iovId==(int)calibOutValues.size()-1) {
+                int granulInIndex = indexOfGranularity(theModules, calibInValues);
+                if(granulInIndex>=0) {
+                    float val = scale*calibInValues.val.at(granulInIndex);
+                    float val_e = scale*calibInValues.val_e.at(granulInIndex);
+                    graphIn->SetPoint(0, lumiPoint/2.0, val);
+                    graphIn->SetPointError(0, lumiPoint*1.5, val_e);
+
+                    // Updating the Y axis range
+                    if ( val - val_e < minY_ && autoScaleY && val != 0.f) {
+                        minY_ = val - val_e;
+                    }
+                    if ( val + val_e > maxY_ && autoScaleY && val != 0.0) {
+                        maxY_ = val + val_e;
+                    }
+                }
+            }
 
 
             // Setting the values to the additional point in the TGraph
-            int nPoints = graph->GetN();
+            int nPoints = graphOut->GetN();
             float val = scale*distValues.val.at(valId);
             float val_e = scale*distValues.val_e.at(valId);
-            graph->SetPoint(nPoints, lumiPoint, val);
-            graph->SetPointError(nPoints, 0.f, val_e);
+            graphOut->SetPoint(nPoints, lumiPoint, val);
+            graphOut->SetPointError(nPoints, 0.f, val_e);
             // printf("      Set point %d to values: x: %.3f y: %.3f\n", nPoints, lumiPoint, val);
 
             // Updating the Y axis range
@@ -514,8 +543,9 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
 
     // Autoscaling the Y axis range
     if(autoScaleY) {
-        minY_= ( minY_>0 ) ?minY_*0.98:minY_*1.02;
-        maxY_= ( maxY_>0 ) ?maxY_*1.05:maxY_*0.95;
+        float range = std::fabs(minY_ - maxY_);
+        minY_= ( minY_>0 ) ?minY_+0.05*range:minY_-0.05*range;
+        maxY_= ( maxY_>0 ) ?maxY_+0.05*range:maxY_-0.05*range;
     }
 
     // Drawing the axis histogram
@@ -528,17 +558,20 @@ int plotCalibration( const TString granulId_, const TString granulParameters_, c
     // Drawing each calibration output value
     int nPlotted = 0;
     for(int iC = 0; iC < nCurves; iC++) {
-        TGraphErrors* graph = graphsOut.at(iC);
+        TGraphErrors* graphOut = graphsOut.at(iC);
+        TGraphErrors* graphIn = graphsIn.at(iC);
 
-        TLegendEntry* legEn = leg->AddEntry(graph, granulNames.at(iC).c_str(), "p");
-        setGraphStyle(graph, granulColours.at(iC), granulStyles.at(iC));
-        if(graph->GetN() < 1) {
+        TLegendEntry* legEn = leg->AddEntry(graphOut, granulNames.at(iC).c_str(), "p");
+        setGraphStyle(graphOut, granulColours.at(iC), granulStyles.at(iC), false);
+        setGraphStyle(graphIn, granulColours.at(iC), granulStyles.at(iC), true);
+        if(graphOut->GetN() < 1) {
             legEn->SetLabel(("{"+granulNames.at(iC)+"}").c_str());
             continue;
         }
         nPlotted++;
 
-        graph->Draw("Psame");
+        graphOut->Draw("Psame");
+        if(drawInput) graphIn->Draw("lsame");
     }
         
     setLegendStyle(leg, nCols, nPlotted);
@@ -739,17 +772,100 @@ bool valsAreClose(float val1, float val2, float minD)
     return true;
 }
 
-void setGraphStyle ( TGraph *graph, int colourId, int styleId )
+
+/**
+ * Determines the index of the granularity in a list of granularity-value pairs
+ * @method indexOfGranularity
+ * @param  granul             Granularity to be identified
+ * @param  values             List of value-granularity pairs
+ * @return                    Index of the granularity
+ */
+int indexOfGranularity(GRANUL& granul, GRANVAL& values) {
+
+    // Looping over the list of granularities
+    for(int valId = 0; valId < (int)values.val.size(); valId++) {
+        GRANUL& theModules = values.detPos.at(valId);
+        if(granulsIntersect(granul, theModules)) return valId;
+    }
+
+    return -1;
+}
+
+
+/**
+ * Determines if the two granularities intersect
+ * @method granulsIntersect
+ * @param  granul1          First granularity
+ * @param  granul2          Second granularity
+ * @return                  True if both granularities have intersecting geometry ranges
+ */
+bool granulsIntersect(GRANUL& granul1, GRANUL& granul2) {
+    // printf("        Granul1: Det: %d R: [%.2f,%.2f]\tZ: [%.2f,%.2f]\tPhi: [%.2f,%.2f]\n", granul1.subDetId, granul1.r.v1, granul1.r.v2, granul1.z.v1, granul1.z.v2, granul1.phi.v1, granul1.phi.v2);
+    // printf("        Granul2: Det: %d R: [%.2f,%.2f]\tZ: [%.2f,%.2f]\tPhi: [%.2f,%.2f]\n\n", granul2.subDetId, granul2.r.v1, granul2.r.v2, granul2.z.v1, granul2.z.v2, granul2.phi.v1, granul2.phi.v2);
+
+    // if(granul1.subDetId != granul2.subDetId) return false;
+    if(!pointsDoOverlap(granul1.r, granul2.r)) return false;
+    if(!pointsDoOverlap(granul1.z, granul2.z)) return false;
+    if(!pointsDoOverlap(granul1.phi, granul2.phi)) return false;
+    // printf("Overlap!\n");
+
+    return true;
+}
+
+
+bool pointsDoOverlap(POINT2 p1, POINT2 p2) {
+    double temp;
+    // Ordering values of p1
+    if(p1.v1 > p1.v2) {
+        temp = p1.v2;
+        p1.v2 = p1.v1;
+        p1.v1 = temp;
+    }
+    // Ordering values of p2
+    if(p2.v1 > p2.v2) {
+        temp = p2.v2;
+        p2.v2 = p2.v1;
+        p2.v1 = temp;
+    }
+
+    if(p1.v1 > p2.v2) return false;
+    if(p2.v1 > p1.v2) return false;
+
+    return true;
+}
+
+
+/**
+ * Sets the style of TGraph
+ * @method setGraphStyle
+ * @param  graph         TGraph to be stylized
+ * @param  colourId      Id of the color
+ * @param  styleId       Id of the style
+ */
+void setGraphStyle ( TGraph *graph, int colourId, int styleId , bool drawLine)
 {
     graph->SetMarkerColor(lineColors[colourId]);
     graph->SetLineColor(lineColors[colourId]);
-    graph->SetMarkerStyle(markerStyles[styleId]);
-    graph->SetLineStyle(lineStyles[styleId]);
+    if(!drawLine) graph->SetMarkerStyle(markerStyles[styleId]); else graph->SetMarkerStyle(0);
+    if(drawLine) graph->SetLineStyle(lineStyles[styleId]); else graph->SetLineStyle(1);
     graph->SetLineWidth(2.f);
 
     return;
 }
 
+
+/**
+ * Creates an empty histogram with the axis and titles
+ * @method drawEmptyHisto
+ * @param  Xmin           Minimum value of the X axis
+ * @param  Xmax           Maximum value of the X axis
+ * @param  xTitle         Title of the X axis
+ * @param  Ymin           Minimum value of the Y axis
+ * @param  Ymax           Maximum value of the Y axis
+ * @param  yTitle         Title of the Y axis
+ * @param  name           Name of the histogram object
+ * @return                TH1* histogram object
+ */
 TH1* drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float Ymax, TString yTitle, TString name )
 {
     if(log_) printf ( "Setting empty histo: X: %.2f-%.2f\tY: %.2f-%.2f\n",Xmin,Xmax,Ymin,Ymax );
@@ -776,6 +892,14 @@ TH1* drawEmptyHisto ( float Xmin, float Xmax, TString xTitle, float Ymin, float 
     return histo;
 }
 
+
+/**
+ * Sets the style of the legend pane
+ * @method setLegendStyle
+ * @param  leg            Legend to be stylized
+ * @param  ncols          Number of columns in the legendf
+ * @param  nDetParts      Number of the entries in the legend
+ */
 void setLegendStyle ( TLegend *leg, const int ncols, const int nDetParts )
 {
     leg->SetTextFont ( 42 );
@@ -806,6 +930,11 @@ void setLegendStyle ( TLegend *leg, const int ncols, const int nDetParts )
 //     gPad->RedrawAxis();
 // }
 
+
+/**
+ * Set the official CMS style to the canvas
+ * @method setTDRStyle
+ */
 void setTDRStyle() {
     tdrStyle = new TStyle("tdrStyle","Style for P-TDR");
 
